@@ -5,7 +5,7 @@ use crate::github::GitHubClient;
 use crate::services::MultiResourceFetcher;
 use crate::types::{PullRequest, PullRequestId, PullRequestNumber, PullRequestUrl, RepositoryId};
 
-pub async fn get_pull_requests_by_urls(
+pub async fn get_pull_requests_details(
     github_client: &GitHubClient,
     pull_request_urls: Vec<PullRequestUrl>,
 ) -> Result<BTreeMap<RepositoryId, Vec<PullRequest>>> {

@@ -189,7 +189,7 @@ impl GitInsightTools {
 #[tool(tool_box)]
 impl GitInsightTools {
     #[tool(
-        description = "Get all project resources. Returns all project resources as markdown array including title, description, resource counts, and timestamps. This tool fetches all resources from the specified project(s) without pagination. Examples: `{}` (all projects), `{\"project_url\": \"https://github.com/users/username/projects/1\"}` (specific project)"
+        description = "Get all project resources. Returns all project resources as markdown array including title, description, resource counts, and timestamps. This tool fetches all resources from the specified project(s) without pagination. Use get_issues_details and get_pull_request_details functions to get more detailed information. Examples: `{}` (all projects), `{\"project_url\": \"https://github.com/users/username/projects/1\"}` (specific project)"
     )]
     async fn get_project_resources(
         &self,
@@ -253,9 +253,9 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Get issues by their numbers from specified repositories. Returns detailed issue information including comments."
+        description = "Get issues by their numbers from specified repositories. Returns detailed issue information including comments, formatted as markdown with comprehensive details including title, body, labels, assignees, creation/update dates, and all comments with timestamps."
     )]
-    async fn get_issues_by_urls(
+    async fn get_issues_details(
         &self,
         #[tool(param)]
         #[schemars(description = "Issue URLs to fetch")]
@@ -269,7 +269,7 @@ impl GitInsightTools {
         let issue_urls: Vec<IssueUrl> = issue_urls.into_iter().map(IssueUrl).collect();
 
         // Fetch issues using the existing function
-        let issues_by_repo = functions::issue::get_issues_by_urls(&github_client, issue_urls)
+        let issues_by_repo = functions::issue::get_issues_details(&github_client, issue_urls)
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
 
@@ -296,9 +296,9 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Get pull requests by their URLs from specified repositories. Returns detailed pull request information including comments."
+        description = "Get pull requests by their URLs from specified repositories. Returns detailed pull request information including comments, formatted as markdown with comprehensive details including title, body, labels, assignees, creation/update dates, review status, and all comments with timestamps."
     )]
-    async fn get_pull_request_by_urls(
+    async fn get_pull_request_details(
         &self,
         #[tool(param)]
         #[schemars(description = "Pull request URLs to fetch")]
@@ -314,7 +314,7 @@ impl GitInsightTools {
 
         // Fetch pull requests using the existing function
         let pull_requests_by_repo =
-            functions::pull_request::get_pull_requests_by_urls(&github_client, pull_request_urls)
+            functions::pull_request::get_pull_requests_details(&github_client, pull_request_urls)
                 .await
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?;
 
@@ -342,7 +342,7 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Search across all registered repositories for issues, PRs, and projects. Comprehensive search across multiple resource types."
+        description = "Search across all registered repositories for issues, PRs, and projects. Comprehensive search across multiple resource types. Use get_issues_details and get_pull_request_details functions to get more detailed information."
     )]
     async fn search_across_repositories(
         &self,
@@ -490,22 +490,22 @@ Examples:
 {{"name": "get_project_resources", "arguments": {{"project_url": "https://github.com/users/username/projects/1"}}}}
 ```
 
-### 2. get_issues_by_urls
-Get issues by their URLs from specified repositories. Returns detailed issue information including comments.
+### 2. get_issues_details
+Get issues by their URLs from specified repositories. Returns detailed issue information including comments, formatted as markdown with comprehensive details including title, body, labels, assignees, creation/update dates, and all comments with timestamps.
 
 Examples:
 ```json
 // Get specific issues by URLs
-{{"name": "get_issues_by_urls", "arguments": {{"issue_urls": ["https://github.com/rust-lang/rust/issues/12345", "https://github.com/tokio-rs/tokio/issues/5678"]}}}}
+{{"name": "get_issues_details", "arguments": {{"issue_urls": ["https://github.com/rust-lang/rust/issues/12345", "https://github.com/tokio-rs/tokio/issues/5678"]}}}}
 ```
 
-### 3. get_pull_request_by_urls
-Get pull requests by their URLs from specified repositories. Returns detailed pull request information including comments.
+### 3. get_pull_request_details
+Get pull requests by their URLs from specified repositories. Returns detailed pull request information including comments, formatted as markdown with comprehensive details including title, body, labels, assignees, creation/update dates, review status, and all comments with timestamps.
 
 Examples:
 ```json
 // Get specific pull requests by URLs
-{{"name": "get_pull_request_by_urls", "arguments": {{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}}}}
+{{"name": "get_pull_request_details", "arguments": {{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}}}}
 ```
 
 ### 4. search_across_repositories
@@ -545,8 +545,8 @@ Examples:
    - Choose between light and rich output formats
 
 2. **Specific Resource Access**:
-   - Use get_issues_by_urls to get detailed issue information with comments
-   - Use get_pull_request_by_urls to get detailed pull request information with comments
+   - Use get_issues_details to get detailed issue information with comments
+   - Use get_pull_request_details to get detailed pull request information with comments
 
 3. **Project Management**:
    - Use get_project_resources to access project boards and associated resources

@@ -5,7 +5,7 @@ use crate::github::GitHubClient;
 use crate::services::MultiResourceFetcher;
 use crate::types::{Issue, IssueId, IssueNumber, IssueUrl, RepositoryId};
 
-pub async fn get_issues_by_urls(
+pub async fn get_issues_details(
     github_client: &GitHubClient,
     issue_urls: Vec<IssueUrl>,
 ) -> Result<BTreeMap<RepositoryId, Vec<Issue>>> {

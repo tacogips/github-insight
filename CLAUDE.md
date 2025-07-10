@@ -160,10 +160,10 @@ GITHUB_TOKEN=ghp_token cargo run --bin github-insight-cli -- [OPTIONS] <COMMAND>
 - `list-projects`: Display all GitHub projects registered in a specific profile with their URLs and metadata
 
 #### Data Operations
-- `search`: Search for issues and pull requests across multiple repositories with advanced GitHub search syntax and pagination support. Note: Repository specifications (repo:owner/name) within the query are not supported and will be ignored - repository filtering is handled by the --repository-url option (expects full GitHub URL format) and registered repositories in the profile
-- `get-project-resources`: Fetch detailed project resources including items, metadata, timestamps, and assignees with comprehensive pagination support
-- `get-issues`: Fetch detailed issue information including comments, metadata, labels, and timeline events by URLs
-- `get-pull-requests`: Fetch detailed pull request information including comments, metadata, reviews, and timeline events by URLs
+- `search`: Search for issues and pull requests across multiple repositories with advanced GitHub search syntax and pagination support. Use `get-issues` and `get-pull-requests` commands to get more detailed information. Note: Repository specifications (repo:owner/name) within the query are not supported and will be ignored - repository filtering is handled by the --repository-url option (expects full GitHub URL format) and registered repositories in the profile
+- `get-project-resources`: Fetch detailed project resources including items, metadata, timestamps, and assignees with comprehensive pagination support. Use `get-issues` and `get-pull-requests` commands to get more detailed information
+- `get-issues`: Fetch detailed issue information including comments, metadata, labels, and timeline events by URLs (formatted as markdown with comprehensive details)
+- `get-pull-requests`: Fetch detailed pull request information including comments, metadata, reviews, and timeline events by URLs (formatted as markdown with comprehensive details)
 
 #### General
 - `help`: Print help message or help for specific subcommands

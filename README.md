@@ -105,7 +105,7 @@ Add to your Claude Desktop configuration:
 ## MCP Tools
 
 ### `get_project_resources`
-Retrieve detailed project information including associated issues and pull requests with comprehensive pagination support.
+Retrieve detailed project information including associated issues and pull requests with comprehensive pagination support. Use `get_issues_details` and `get_pull_request_details` functions to get more detailed information.
 
 ```json
 // Get all projects from profile
@@ -122,8 +122,8 @@ Retrieve detailed project information including associated issues and pull reque
 }
 ```
 
-### `get_issues_by_urls`
-Fetch detailed issue information by GitHub URLs.
+### `get_issues_details`
+Fetch detailed issue information by GitHub URLs, formatted as markdown with comprehensive details including title, body, labels, assignees, creation/update dates, and all comments with timestamps.
 
 ```json
 {
@@ -134,8 +134,8 @@ Fetch detailed issue information by GitHub URLs.
 }
 ```
 
-### `get_pull_requests_by_urls`
-Retrieve comprehensive pull request data including reviews and commits.
+### `get_pull_request_details`
+Retrieve comprehensive pull request data including reviews and commits, formatted as markdown with comprehensive details including title, body, labels, assignees, creation/update dates, review status, and all comments with timestamps.
 
 ```json
 {
@@ -147,7 +147,7 @@ Retrieve comprehensive pull request data including reviews and commits.
 ```
 
 ### `search_across_repositories`
-Powerful search across multiple repositories with advanced filtering and flexible output formatting.
+Powerful search across multiple repositories with advanced filtering and flexible output formatting. Use `get_issues_details` and `get_pull_request_details` functions to get more detailed information.
 
 ```json
 // Basic search (default light format)

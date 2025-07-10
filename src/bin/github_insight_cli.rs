@@ -576,7 +576,7 @@ async fn handle_get_issues_command(
     let github_client = GitHubClient::new(github_token.clone(), request_timeout)
         .map_err(|e| anyhow::anyhow!("Failed to create GitHub client: {}", e))?;
 
-    let issues_by_repo = functions::issue::get_issues_by_urls(&github_client, issue_urls).await?;
+    let issues_by_repo = functions::issue::get_issues_details(&github_client, issue_urls).await?;
 
     // Output results
     match format {
@@ -615,7 +615,7 @@ async fn handle_get_pull_requests_command(
         .map_err(|e| anyhow::anyhow!("Failed to create GitHub client: {}", e))?;
 
     let pull_requests_by_repo =
-        functions::pull_request::get_pull_requests_by_urls(&github_client, pull_request_urls)
+        functions::pull_request::get_pull_requests_details(&github_client, pull_request_urls)
             .await?;
 
     // Output results
