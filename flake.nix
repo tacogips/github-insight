@@ -95,7 +95,7 @@
         # Package that builds from source
         packages.default = buildRustPackageCustom {
           pname = "github-insight";
-          version = "0.1.0";
+          version = "0.1.2";
           src = ./.;
 
           # Basic cargo lock configuration
@@ -131,7 +131,7 @@
         # Binary package for GitHub releases
         packages.github-insight-binary = pkgs.stdenv.mkDerivation rec {
           pname = "github-insight";
-          version = "0.1.0";
+          version = "0.1.2";
 
           src = pkgs.fetchurl {
             url = "https://github.com/tacogips/github-insight/releases/download/v${version}/github-insight-${pkgs.stdenv.hostPlatform.system}.tar.gz";
