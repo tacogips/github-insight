@@ -7,7 +7,7 @@ use crate::github::graphql::graphql_types::timeline::TimelineItemsConnection;
 use crate::github::graphql::graphql_types::user::{AssigneesConnection, Author};
 use crate::github::graphql::graphql_types::{LabelsConnection, MilestoneNode};
 use crate::types::label::Label;
-use crate::types::{PullRequest, PullRequestId, PullRequestState, User};
+use crate::types::{IssueOrPullrequestId, PullRequest, PullRequestId, PullRequestState, User};
 
 // Constants for GraphQL API values
 const STATE_OPEN: &str = "OPEN";
@@ -157,7 +157,20 @@ impl TryFrom<(PullRequestNode, crate::types::RepositoryId)> for PullRequest {
             };
 
         // Fallback: also extract from text content for any missed references
-        let text_linked_resources = vec![];
+        let mut text_linked_resources = Vec::new();
+
+        // Extract from PR body
+        if let Some(ref body) = pull_request_node.body {
+            text_linked_resources
+                .extend(IssueOrPullrequestId::extract_resource_url_from_text(body));
+        }
+
+        // Extract from PR comments
+        for comment_node in &pull_request_node.comments.nodes {
+            text_linked_resources.extend(IssueOrPullrequestId::extract_resource_url_from_text(
+                &comment_node.body,
+            ));
+        }
 
         // Merge timeline-based and text-based results, prioritizing timeline data
         for text_resource in text_linked_resources {

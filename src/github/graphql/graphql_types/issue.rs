@@ -7,7 +7,7 @@ use crate::github::graphql::graphql_types::repository::Repository;
 use crate::github::graphql::graphql_types::timeline::TimelineItemsConnection;
 use crate::github::graphql::graphql_types::user::{AssigneesConnection, Author};
 use crate::github::graphql::graphql_types::{LabelsConnection, MilestoneNode};
-use crate::types::{Issue, RepositoryId, User};
+use crate::types::{Issue, IssueOrPullrequestId, RepositoryId, User};
 
 // Constants for GraphQL API values
 const STATE_OPEN: &str = "OPEN";
@@ -114,15 +114,43 @@ impl TryFrom<IssueNode> for crate::types::Issue {
         // Create GitIssue
         let issue_id = IssueId::new(git_repository, issue_node.number as u32);
 
-        // For now, return empty comments - we'll implement comment parsing separately
-        let comments = vec![];
+        let comments: Result<Vec<_>, _> = issue_node
+            .comments
+            .nodes
+            .iter()
+            .map(|comment_node| crate::types::IssueComment::try_from(comment_node.clone()))
+            .collect();
+        let comments = comments?;
 
         // Parse relative issue or pull request IDs from timeline items
-        let relative_issue_or_pull_requests = issue_node
+        let mut linked_resources: Vec<IssueOrPullrequestId> = issue_node
             .timeline_items
             .as_ref()
             .map(|timeline_items| timeline_items.into())
             .unwrap_or_default();
+
+        // Fallback: also extract from text content for any missed references
+        let mut text_linked_resources = Vec::new();
+
+        // Extract from issue body
+        if let Some(ref body) = issue_node.body {
+            text_linked_resources
+                .extend(IssueOrPullrequestId::extract_resource_url_from_text(body));
+        }
+
+        // Extract from issue comments
+        for comment_node in &issue_node.comments.nodes {
+            text_linked_resources.extend(IssueOrPullrequestId::extract_resource_url_from_text(
+                &comment_node.body,
+            ));
+        }
+
+        // Merge timeline-based and text-based results, prioritizing timeline data
+        for text_resource in text_linked_resources {
+            if !linked_resources.contains(&text_resource) {
+                linked_resources.push(text_resource);
+            }
+        }
 
         Ok(Issue {
             issue_id,
@@ -141,7 +169,7 @@ impl TryFrom<IssueNode> for crate::types::Issue {
             comments,
             milestone_id: milestone_number,
             locked: issue_node.locked.unwrap_or(false),
-            linked_resources: relative_issue_or_pull_requests,
+            linked_resources,
         })
     }
 }

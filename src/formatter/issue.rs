@@ -73,7 +73,7 @@ pub fn issue_body_markdown_with_timezone(
                     content.push_str(&format!("- Issue: {}\n", issue_id.url()));
                 }
                 crate::types::IssueOrPullrequestId::PullrequestId(pr_id) => {
-                    content.push_str(&format!("- Pull Request: {}\n", pr_id.url()));
+                    content.push_str(&format!("- PR: {}\n", pr_id.url()));
                 }
             }
         }
@@ -140,7 +140,12 @@ pub fn issue_body_markdown_with_timezone_light(
 
     // Linked resources
     if !issue.linked_resources.is_empty() {
-        content.push_str(&format!("**Linked:** {}\n", issue.linked_resources.len()));
+        let urls: Vec<String> = issue
+            .linked_resources
+            .iter()
+            .map(|each| each.url())
+            .collect();
+        content.push_str(&format!("**Linked:** {}\n", urls.join(",")));
     }
 
     MarkdownContent(content)
