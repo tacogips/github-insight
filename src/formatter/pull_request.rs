@@ -145,9 +145,9 @@ pub fn pull_request_body_markdown_with_timezone(
         content.push_str("(No comments)\n\n");
     }
 
-    // Linked events (Issues and Pull Requests)
+    // Linked resources (Issues and Pull Requests)
+    content.push_str("## linked resources \n");
     if !pr.linked_resources.is_empty() {
-        content.push_str("## linked events\n");
         for linked in &pr.linked_resources {
             match linked {
                 crate::types::IssueOrPullrequestId::IssueId(issue_id) => {

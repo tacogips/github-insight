@@ -312,9 +312,8 @@ impl TryFrom<ProjectItem> for ProjectResource {
                         },
                         _ => None,
                     });
-                
                 if fallback.is_none() {
-                    tracing::debug!("No column name found - available fields: {:?}", 
+                    tracing::debug!("No column name found - available fields: {:?}",
                         custom_field_values.iter().map(|fv| &fv.field_name).collect::<Vec<_>>());
                 }
                 fallback

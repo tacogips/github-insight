@@ -64,9 +64,9 @@ pub fn issue_body_markdown_with_timezone(
         content.push('\n');
     }
 
-    // Linked events (Issues and Pull Requests)
+    // Linked resources (Issues and Pull Requests)
+    content.push_str("## linked resources \n");
     if !issue.linked_resources.is_empty() {
-        content.push_str("## linked events\n");
         for linked in &issue.linked_resources {
             match linked {
                 crate::types::IssueOrPullrequestId::IssueId(issue_id) => {

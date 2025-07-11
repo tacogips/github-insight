@@ -6,6 +6,7 @@ pub fn timeline_items_query(event_limit: u8) -> String {
                         ... on CrossReferencedEvent {{
                           createdAt
                           source {{
+                            __typename
                             ... on Issue {{
                               number
                               title
@@ -36,6 +37,7 @@ pub fn timeline_items_query(event_limit: u8) -> String {
                         ... on ConnectedEvent {{
                           createdAt
                           subject {{
+                            __typename
                             ... on Issue {{
                               number
                               title
@@ -65,6 +67,7 @@ pub fn timeline_items_query(event_limit: u8) -> String {
                         ... on DisconnectedEvent {{
                           createdAt
                           subject {{
+                            __typename
                             ... on Issue {{
                               number
                               title
