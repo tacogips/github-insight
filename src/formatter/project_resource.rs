@@ -15,12 +15,30 @@ pub fn project_resource_body_markdown_with_timezone(
 
     let title = project_resource.title.as_deref().unwrap_or("(No title)");
     content.push_str(&format!("# {}\n", title));
-    content.push_str(&format!("author: {}\n", project_resource.author));
-    content.push_str(&format!("state: {}\n", project_resource.state));
+    content.push_str(&format!("Author: {}\n", project_resource.author));
+    content.push_str(&format!("State: {}\n", project_resource.state));
+    content.push_str(&format!(
+        "Column: {}\n",
+        project_resource
+            .column_name
+            .as_deref()
+            .unwrap_or("No Status")
+    ));
+
+    //NO labels for now
+    //// Labels
+    //if !project_resource.labels.is_empty() {
+    //    content.push_str("## labels\n");
+    //    for label in &project_resource.labels {
+    //        content.push_str(&format!("- {}\n", label));
+    //    }
+    //    content.push('\n');
+    //}
+
     content.push('\n');
 
     // Original resource reference
-    content.push_str("## original resource\n");
+    content.push_str("## Original resource\n");
     match &project_resource.original_resource {
         ProjectOriginalResource::Issue(issue_id) => {
             content.push_str("- Type: Issue\n");
@@ -34,23 +52,6 @@ pub fn project_resource_body_markdown_with_timezone(
             content.push_str("- Type: Draft Issue (project-only)\n");
         }
     }
-
-    // Column information
-    if let Some(column_name) = &project_resource.column_name {
-        content.push_str(&format!("column: {}\n", column_name));
-    }
-    content.push('\n');
-
-    //NO labels for now
-    //// Labels
-    //if !project_resource.labels.is_empty() {
-    //    content.push_str("## labels\n");
-    //    for label in &project_resource.labels {
-    //        content.push_str(&format!("- {}\n", label));
-    //    }
-    //    content.push('\n');
-    //}
-
     // Assignees
     if !project_resource.assignees.is_empty() {
         content.push_str("## assignees\n");

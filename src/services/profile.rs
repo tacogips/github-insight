@@ -455,11 +455,11 @@ mod tests {
         let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
 
         service
-            .create_profile("test", Some("Test profile".to_string()))
+            .create_profile(&ProfileName::from("test"), Some("Test profile".to_string()))
             .unwrap();
         let profiles = service.list_profiles();
-        assert!(profiles.contains(&"test".to_string()));
-        assert!(profiles.contains(&"default".to_string()));
+        assert!(profiles.contains(&ProfileName::from("test")));
+        assert!(profiles.contains(&ProfileName::from("default")));
     }
 
     #[test]
@@ -473,9 +473,11 @@ mod tests {
         };
 
         service
-            .register_repository("default", repo_id.clone())
+            .register_repository(&ProfileName::from("default"), repo_id.clone())
             .unwrap();
-        let repos = service.list_repositories("default").unwrap();
+        let repos = service
+            .list_repositories(&ProfileName::from("default"))
+            .unwrap();
         assert_eq!(repos.len(), 1);
         assert_eq!(repos[0], repo_id);
     }

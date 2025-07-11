@@ -301,6 +301,7 @@ impl ProjectResource {
         assignees: Vec<String>,
         labels: Vec<String>,
         state: String,
+        column_name: Option<String>,
         created_at: DateTime<Utc>,
         updated_at: DateTime<Utc>,
         original_resource: ProjectOriginalResource,
@@ -314,7 +315,7 @@ impl ProjectResource {
             state,
             created_at: Some(created_at),
             updated_at: Some(updated_at),
-            column_name: None,
+            column_name,
             custom_field_values: Vec::new(),
             original_resource,
         }

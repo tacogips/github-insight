@@ -237,38 +237,87 @@ impl TryFrom<ProjectItem> for ProjectResource {
             for field_value in field_values.nodes {
                 match field_value {
                     FieldValue::Text { field, text } => {
-                        if let Some(text_value) = text {
+                        if let Some(ref text_value) = text {
                             custom_field_values.push(ProjectCustomFieldValue {
-                                field_id: field.id,
-                                field_name: field.name,
-                                value: ProjectFieldValue::Text(text_value),
+                                field_id: field.id.clone(),
+                                field_name: field.name.clone(),
+                                value: ProjectFieldValue::Text(text_value.clone()),
                             });
+                            tracing::debug!("Found text field: {} = {:?}", field.name, text_value);
                         }
                     }
                     FieldValue::SingleSelect { field, name } => {
                         if let Some(select_value) = name {
                             custom_field_values.push(ProjectCustomFieldValue {
-                                field_id: field.id,
-                                field_name: field.name,
-                                value: ProjectFieldValue::SingleSelect(select_value),
+                                field_id: field.id.clone(),
+                                field_name: field.name.clone(),
+                                value: ProjectFieldValue::SingleSelect(select_value.clone()),
                             });
+                            tracing::debug!(
+                                "Found single select field: {} = {:?}",
+                                field.name,
+                                select_value
+                            );
                         }
                     }
                     FieldValue::Other => {
                         // Skip unsupported field value types
+                        tracing::debug!("Skipping unsupported field value type: Other");
                     }
                 }
             }
         }
 
         // Extract column name from field values (look for Status field)
+        // Common field names that represent project status/column
+        let status_field_names = [
+            "Status", "status", "Column", "column", "State", "state", "Phase", "phase", "Priority",
+            "priority", "Board", "board", "Team", "team",
+        ];
+
         let column_name = custom_field_values
             .iter()
-            .find(|fv| fv.field_name == "Status")
+            .find(|fv| {
+                // Check if field name matches any of the common status field names
+                let matches = status_field_names.iter().any(|&name| fv.field_name.eq_ignore_ascii_case(name));
+                if matches {
+                    tracing::debug!("Found status field match: {} matches known status field names", fv.field_name);
+                }
+                matches
+            })
             .and_then(|fv| match &fv.value {
-                ProjectFieldValue::Text(text) => Some(text.clone()),
-                ProjectFieldValue::SingleSelect(select) => Some(select.clone()),
-                _ => None,
+                ProjectFieldValue::Text(text) => {
+                    tracing::debug!("Using text field '{}' with value '{}' as column name", fv.field_name, text);
+                    Some(text.clone())
+                },
+                ProjectFieldValue::SingleSelect(select) => {
+                    tracing::debug!("Using single select field '{}' with value '{}' as column name", fv.field_name, select);
+                    Some(select.clone())
+                },
+                _ => {
+                    tracing::debug!("Field '{}' has unsupported value type for column name", fv.field_name);
+                    None
+                }
+            })
+            .or_else(|| {
+                // If no specific status field found, try to find the first SingleSelect field
+                // as it's most likely to be a status/column field
+                let fallback = custom_field_values
+                    .iter()
+                    .find(|fv| matches!(fv.value, ProjectFieldValue::SingleSelect(_)))
+                    .and_then(|fv| match &fv.value {
+                        ProjectFieldValue::SingleSelect(select) => {
+                            tracing::debug!("Using fallback single select field '{}' with value '{}' as column name", fv.field_name, select);
+                            Some(select.clone())
+                        },
+                        _ => None,
+                    });
+                
+                if fallback.is_none() {
+                    tracing::debug!("No column name found - available fields: {:?}", 
+                        custom_field_values.iter().map(|fv| &fv.field_name).collect::<Vec<_>>());
+                }
+                fallback
             });
 
         match content {
