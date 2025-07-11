@@ -26,22 +26,6 @@ pub fn pull_request_body_markdown_with_timezone(
         pr.pull_request_id.git_repository.url()
     ));
 
-    // Linked resources (Issues and Pull Requests)
-    content.push_str("## Linked resources \n");
-    if !pr.linked_resources.is_empty() {
-        for linked in &pr.linked_resources {
-            match linked {
-                crate::types::IssueOrPullrequestId::IssueId(issue_id) => {
-                    content.push_str(&format!("- Issue: {}\n", issue_id.url()));
-                }
-                crate::types::IssueOrPullrequestId::PullrequestId(pr_id) => {
-                    content.push_str(&format!("- PR: {}\n", pr_id.url()));
-                }
-            }
-        }
-        content.push('\n');
-    }
-
     // Date information
     content.push_str(&format!(
         "created: {}\n",
@@ -64,6 +48,22 @@ pub fn pull_request_body_markdown_with_timezone(
         ));
     }
     content.push('\n');
+
+    // Linked resources (Issues and Pull Requests)
+    content.push_str("## Linked resources \n");
+    if !pr.linked_resources.is_empty() {
+        for linked in &pr.linked_resources {
+            match linked {
+                crate::types::IssueOrPullrequestId::IssueId(issue_id) => {
+                    content.push_str(&format!("- Issue: {}\n", issue_id.url()));
+                }
+                crate::types::IssueOrPullrequestId::PullrequestId(pr_id) => {
+                    content.push_str(&format!("- PR: {}\n", pr_id.url()));
+                }
+            }
+        }
+        content.push('\n');
+    }
 
     // Assignees
     if !pr.assignees.is_empty() {

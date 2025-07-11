@@ -369,7 +369,7 @@ impl GitInsightTools {
         cursors: Option<Vec<SearchCursorByRepository>>,
         #[tool(param)]
         #[schemars(
-            description = "Output format for search results (light/rich). Light format provides minimal information, rich format provides comprehensive details."
+            description = "Output format for search results (light/rich). Light format provides minimal information (title, status, URL, assignees/author, truncated body up to 100 chars, comment count, linked resources), rich format provides comprehensive details (full body, all comments, timestamps, labels, etc.)."
         )]
         #[schemars(default)]
         output_option: Option<OutputOption>,
