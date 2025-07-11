@@ -22,6 +22,22 @@ pub fn issue_body_markdown_with_timezone(
         issue.issue_id.git_repository.url()
     ));
 
+    // Linked resources (Issues and Pull Requests)
+    content.push_str("## linked resources \n");
+    if !issue.linked_resources.is_empty() {
+        for linked in &issue.linked_resources {
+            match linked {
+                crate::types::IssueOrPullrequestId::IssueId(issue_id) => {
+                    content.push_str(&format!("- Issue: {}\n", issue_id.url()));
+                }
+                crate::types::IssueOrPullrequestId::PullrequestId(pr_id) => {
+                    content.push_str(&format!("- PR: {}\n", pr_id.url()));
+                }
+            }
+        }
+        content.push('\n');
+    }
+
     // Date information
     content.push_str(&format!(
         "created: {}\n",
@@ -60,22 +76,6 @@ pub fn issue_body_markdown_with_timezone(
         content.push_str("## assignee\n");
         for assignee in &issue.assignees {
             content.push_str(&format!("- {}\n", assignee));
-        }
-        content.push('\n');
-    }
-
-    // Linked resources (Issues and Pull Requests)
-    content.push_str("## linked resources \n");
-    if !issue.linked_resources.is_empty() {
-        for linked in &issue.linked_resources {
-            match linked {
-                crate::types::IssueOrPullrequestId::IssueId(issue_id) => {
-                    content.push_str(&format!("- Issue: {}\n", issue_id.url()));
-                }
-                crate::types::IssueOrPullrequestId::PullrequestId(pr_id) => {
-                    content.push_str(&format!("- PR: {}\n", pr_id.url()));
-                }
-            }
         }
         content.push('\n');
     }
