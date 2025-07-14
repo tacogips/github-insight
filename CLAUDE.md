@@ -8,6 +8,7 @@ Guidance for Claude Code when working with this codebase.
 - Always respond in English regardless of user's language
 - Acknowledge reading CLAUDE.md in first response
 - Declare cargo commands use CARGO_TERM_QUIET=true
+- Begin with "Your instruction is {corrected English}" for English instructions
 
 ### Task Management
 
@@ -17,18 +18,9 @@ Guidance for Claude Code when working with this codebase.
 - "show plan" → Display planned tasks
 - "continue tasks" → Start working on pending tasks
 
-## Git Commit Policy
-
-- Follow commit message format from this document
-- Auto-proceed without user confirmation
-- **NO Claude Code attribution** - commits appear as user-made only
-- Execute all "How to change code" steps before completing
-- Never delete tests without deliberation
-- Begin with "Your instruction is {corrected English}" for English instructions
-
 ## How to change code
 
-**MANDATORY** steps after ANY code changes:
+**MANDATORY** Never delete tests without deliberation
 
 ### Pre-modification Review Check
 
@@ -67,6 +59,13 @@ Guidance for Claude Code when working with this codebase.
 - Seek clarification for ambiguous instructions
 - Understand user goals before implementation
 - Present options when unsure about details
+
+### Git Commit Policy
+
+- Follow commit message format from this document
+- Auto-proceed without user confirmation
+- **NO Claude Code attribution** - commits appear as user-made only
+- Execute all "How to change code" steps above before completing
 
 ### Git Commit Message Format
 
@@ -145,27 +144,32 @@ GITHUB_TOKEN=ghp_token cargo run --bin github-insight-cli -- [OPTIONS] <COMMAND>
 ### Commands
 
 #### Profile Management
+
 - `create-profile`: Create a new profile for organizing repositories and projects with optional description
 - `delete-profile`: Delete a profile and all its associated repository and project registrations (irreversible)
 - `list-profiles`: Display all available profiles with their configurations and metadata
 
 #### Repository Management
+
 - `register-repo`: Register a repository to a profile for centralized management and search operations
 - `unregister-repo`: Remove a repository from a profile, excluding it from search and management operations
 - `list-repos`: Display all repositories registered in a specific profile with their URLs and registration details
 
 #### Project Management
+
 - `register-project`: Register a GitHub project to a profile for comprehensive resource management and tracking with pagination support
 - `unregister-project`: Remove a GitHub project from a profile, excluding it from resource management and tracking
 - `list-projects`: Display all GitHub projects registered in a specific profile with their URLs and metadata
 
 #### Data Operations
+
 - `search`: Search for issues and pull requests across multiple repositories with advanced GitHub search syntax and pagination support. Use `get-issues` and `get-pull-requests` commands to get more detailed information. Note: Repository specifications (repo:owner/name) within the query are not supported and will be ignored - repository filtering is handled by the --repository-url option (expects full GitHub URL format) and registered repositories in the profile
 - `get-project-resources`: Fetch detailed project resources including items, metadata, timestamps, and assignees with comprehensive pagination support. Use `get-issues` and `get-pull-requests` commands to get more detailed information
 - `get-issues`: Fetch detailed issue information including comments, metadata, labels, and timeline events by URLs (formatted as markdown with comprehensive details)
 - `get-pull-requests`: Fetch detailed pull request information including comments, metadata, reviews, and timeline events by URLs (formatted as markdown with comprehensive details)
 
 #### General
+
 - `help`: Print help message or help for specific subcommands
 
 ## Code Style Guidelines
@@ -189,6 +193,7 @@ GITHUB_TOKEN=ghp_token cargo run --bin github-insight-cli -- [OPTIONS] <COMMAND>
 ### General Coding Principles
 
 **SOLID Principles**:
+
 - **Single Responsibility**: Each function/struct should have one reason to change
 - **Open/Closed**: Open for extension, closed for modification
 - **Liskov Substitution**: Subtypes must be substitutable for their base types
@@ -196,6 +201,7 @@ GITHUB_TOKEN=ghp_token cargo run --bin github-insight-cli -- [OPTIONS] <COMMAND>
 - **Dependency Inversion**: Depend on abstractions, not concretions
 
 **Clean Code Practices**:
+
 - **Meaningful Names**: Use descriptive, searchable names that express intent
 - **Small Functions**: Functions should do one thing well (max 20-30 lines)
 - **Function Arguments**: Minimize argument count (ideally 0-2, maximum 3)
@@ -203,6 +209,7 @@ GITHUB_TOKEN=ghp_token cargo run --bin github-insight-cli -- [OPTIONS] <COMMAND>
 - **Consistent Formatting**: Follow project's formatting standards religiously
 
 **Error Handling & Robustness**:
+
 - **Fail Fast**: Detect and report errors as early as possible
 - **Graceful Degradation**: System should continue operating with reduced functionality
 - **Input Validation**: Always validate inputs at system boundaries
@@ -210,6 +217,7 @@ GITHUB_TOKEN=ghp_token cargo run --bin github-insight-cli -- [OPTIONS] <COMMAND>
 - **Defensive Programming**: Assume inputs can be malicious or malformed
 
 **Performance & Efficiency**:
+
 - **Premature Optimization**: Avoid unless profiling shows actual bottlenecks
 - **Big O Awareness**: Understand algorithmic complexity of your solutions
 - **Memory Management**: Minimize allocations, avoid memory leaks
@@ -217,6 +225,7 @@ GITHUB_TOKEN=ghp_token cargo run --bin github-insight-cli -- [OPTIONS] <COMMAND>
 - **Caching Strategy**: Cache expensive operations with appropriate invalidation
 
 **Testing & Quality**:
+
 - **Test-Driven Development**: Write tests before implementation when possible
 - **Test Coverage**: Aim for high coverage but focus on critical paths
 - **Test Isolation**: Tests should be independent and repeatable
@@ -224,6 +233,7 @@ GITHUB_TOKEN=ghp_token cargo run --bin github-insight-cli -- [OPTIONS] <COMMAND>
 - **Integration Tests**: Test the complete flow of critical features
 
 **Security & Safety**:
+
 - **Principle of Least Privilege**: Grant minimum necessary permissions
 - **Input Sanitization**: Never trust user input; validate and sanitize
 - **Secure Defaults**: Use secure configurations by default
@@ -233,42 +243,49 @@ GITHUB_TOKEN=ghp_token cargo run --bin github-insight-cli -- [OPTIONS] <COMMAND>
 ### Rust-Specific Guidelines
 
 **Error Handling & Reliability**:
+
 - Always use `Result<T, E>` instead of `unwrap()` or `panic!()`
 - Implement proper error propagation using `?` operator
 - Use `anyhow` for error handling in application code
 - Handle all async operations with proper timeout handling
 
 **Performance & Memory**:
+
 - Avoid unnecessary `clone()` operations - use references when possible
 - Use `ahash` for HashMap operations (already in dependencies)
 - Implement pagination for large data sets
 - Use streaming for large API responses
 
 **Async Programming**:
+
 - Use tokio runtime features appropriately
 - Implement proper cancellation handling
 - Use `futures` utilities for complex async operations
 - Apply timeouts to external API calls
 
 **Security**:
+
 - Never log sensitive data (tokens, personal information)
 - Use `rustls` for TLS connections
 - Validate all external inputs
 - Use secure defaults for HTTP clients
 
 **Testing & Documentation**:
+
 - Write unit tests for all public functions
 - Use `mockito` for HTTP mocking in tests
 - Document all public APIs with `///` comments
 - Use `serial_test` for tests requiring isolation
 
 **GitHub API Integration**:
+
 - Use `octocrab` client consistently
 - Implement proper rate limiting
 - Handle GraphQL pagination correctly
 - Cache responses appropriately using `tantivy`
 
 **Configuration Management**:
+
 - Use `toml` for configuration files
 - Support environment variables
 - Implement profile-based configuration
