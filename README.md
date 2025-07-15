@@ -156,7 +156,7 @@ Powerful search across multiple repositories with advanced filtering and flexibl
 // Advanced search with filters
 {
   "query": "is:open label:bug created:>2024-01-01",
-  "repository_id": "https://github.com/owner/repo",
+  "repository_url": "https://github.com/owner/repo",
   "limit": 50
 }
 
@@ -177,7 +177,7 @@ Powerful search across multiple repositories with advanced filtering and flexibl
   "query": "memory leak",
   "cursors": [
     {
-      "repository_id": "https://github.com/owner/repo",
+      "repository_id": {"owner": "owner", "repository_name": "repo"},
       "cursor": "cursor_token_here"
     }
   ]

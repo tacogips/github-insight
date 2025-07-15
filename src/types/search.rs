@@ -69,7 +69,7 @@ pub struct SearchCursor(pub String);
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SearchCursorByRepository {
     pub cursor: SearchCursor,
-    pub repositor_id: RepositoryId,
+    pub repository_id: RepositoryId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
