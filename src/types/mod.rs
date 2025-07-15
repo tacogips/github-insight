@@ -6,6 +6,7 @@
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use strum::EnumString;
 
 pub use crate::github::graphql::graphql_types::repository::MilestoneNumber;
 
@@ -88,8 +89,9 @@ pub struct SearchResult {
 }
 
 /// Output format options for search results
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, Default, EnumString)]
 #[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
 pub enum OutputOption {
     /// Light format with minimal information
     #[default]

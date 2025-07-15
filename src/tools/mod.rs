@@ -346,7 +346,13 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Search across all registered repositories for issues, PRs, and projects. Comprehensive search across multiple resource types. Use get_issues_details and get_pull_request_details functions to get more detailed information."
+        description = "Search across all registered repositories for issues, PRs, and projects. Comprehensive search across multiple resource types. Use get_issues_details and get_pull_request_details functions to get more detailed information. 
+
+Pagination with cursors:
+- First call: omit cursors parameter to get initial results
+- Response includes cursors array like: [{'cursor': 'Y3Vyc29yOjE=', 'repository_id': {'owner': 'rust-lang', 'repository_name': 'rust'}}]
+- Next call: pass returned cursors to get next page from each repository
+- Continue until no more cursors returned"
     )]
     async fn search_across_repositories(
         &self,
@@ -354,7 +360,7 @@ impl GitInsightTools {
         #[schemars(
             description = "Search query text (required). Supports GitHub search syntax. Examples: 'is:pr state:open', 'is:issue label:bug', 'authentication error', 'head:feature-branch', 'is:pr author:username', 'is:issue assignee:username', 'created:2024-01-01..2024-12-31'. Note: Any repo:owner/name specifications in the query will be overridden when searching specific repositories."
         )]
-        query: SearchQuery,
+        query: String,
         #[tool(param)]
         #[schemars(
             description = "Optional repository URL to search in (e.g., 'https://github.com/owner/repo'). If not provided, searches across all repositories registered in the profile. When specified, allows searching in repositories that are not registered in the profile."
@@ -368,7 +374,7 @@ impl GitInsightTools {
         limit: Option<usize>,
         #[tool(param)]
         #[schemars(
-            description = "Optional search cursors by repository for pagination. Each cursor is associated with a specific repository."
+            description = "Optional search cursors by repository for pagination. Each cursor is associated with a specific repository. Example: [{'cursor': 'Y3Vyc29yOjE=', 'repository_id': {'owner': 'rust-lang', 'repository_name': 'rust'}}]"
         )]
         cursors: Option<Vec<SearchCursorByRepository>>,
         #[tool(param)]
@@ -376,14 +382,23 @@ impl GitInsightTools {
             description = "Optional output format for search results (light/rich, default: light). Light format provides minimal information (title, status, URL, assignees/author, truncated body up to 100 chars, comment count, linked resources), rich format provides comprehensive details (full body, all comments, timestamps, labels, etc.)."
         )]
         #[schemars(default)]
-        output_option: Option<OutputOption>,
+        output_option: Option<String>,
     ) -> Result<CallToolResult, McpError> {
         let github_client = GitHubClient::new(self.github_token.clone(), None).map_err(|e| {
             McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
         })?;
 
         let limit = limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
-        let format = output_option.unwrap_or_default();
+
+        // Convert String to OutputOption
+        let format = if let Some(option_str) = output_option {
+            option_str.parse::<OutputOption>().unwrap_or_default()
+        } else {
+            OutputOption::default()
+        };
+
+        // Convert String to SearchQuery
+        let query = SearchQuery::new(query);
 
         let repository_urls = if let Some(repo_url_str) = repository_url {
             // Search in specific repository
