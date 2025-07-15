@@ -196,7 +196,7 @@ impl GitInsightTools {
 
         #[tool(param)]
         #[schemars(
-            description = "Optional project URL to fetch resources from. If not provided, fetches all resources from all projects in the profile. Examples: \"https://github.com/users/username/projects/1\""
+            description = "Optional project URL to fetch resources from. If not provided, fetches all resources from all projects in the profile. Examples: 'https://github.com/users/username/projects/1', 'https://github.com/orgs/orgname/projects/5'"
         )]
         project_url: Option<String>,
     ) -> Result<CallToolResult, McpError> {
@@ -258,7 +258,9 @@ impl GitInsightTools {
     async fn get_issues_details(
         &self,
         #[tool(param)]
-        #[schemars(description = "Issue URLs to fetch")]
+        #[schemars(
+            description = "Issue URLs to fetch. Examples: ['https://github.com/rust-lang/rust/issues/12345', 'https://github.com/tokio-rs/tokio/issues/5678']"
+        )]
         issue_urls: Vec<String>,
     ) -> Result<CallToolResult, McpError> {
         let github_client = GitHubClient::new(self.github_token.clone(), None).map_err(|e| {
@@ -301,7 +303,9 @@ impl GitInsightTools {
     async fn get_pull_request_details(
         &self,
         #[tool(param)]
-        #[schemars(description = "Pull request URLs to fetch")]
+        #[schemars(
+            description = "Pull request URLs to fetch. Examples: ['https://github.com/rust-lang/rust/pull/98765', 'https://github.com/tokio-rs/tokio/pull/4321']"
+        )]
         pull_request_urls: Vec<String>,
     ) -> Result<CallToolResult, McpError> {
         let github_client = GitHubClient::new(self.github_token.clone(), None).map_err(|e| {
@@ -348,14 +352,14 @@ impl GitInsightTools {
         &self,
         #[tool(param)]
         #[schemars(
-            description = "Search query text. Note: Any repo:owner/name specifications in the query will be overridden when searching specific repositories."
+            description = "Search query text (required). Supports GitHub search syntax. Examples: 'is:pr state:open', 'is:issue label:bug', 'authentication error', 'head:feature-branch', 'is:pr author:username', 'is:issue assignee:username', 'created:2024-01-01..2024-12-31'. Note: Any repo:owner/name specifications in the query will be overridden when searching specific repositories."
         )]
         query: SearchQuery,
         #[tool(param)]
         #[schemars(
-            description = "Optional repository ID to search in. If not provided, searches across all repositories in the profile."
+            description = "Optional repository URL to search in (e.g., 'https://github.com/owner/repo'). If not provided, searches across all repositories registered in the profile. When specified, allows searching in repositories that are not registered in the profile."
         )]
-        repository_id: Option<String>,
+        repository_url: Option<String>,
         #[tool(param)]
         #[schemars(
             description = "Result limit per repository (default 30, max 100). Examples: 10, 50"
@@ -369,7 +373,7 @@ impl GitInsightTools {
         cursors: Option<Vec<SearchCursorByRepository>>,
         #[tool(param)]
         #[schemars(
-            description = "Output format for search results (light/rich). Light format provides minimal information (title, status, URL, assignees/author, truncated body up to 100 chars, comment count, linked resources), rich format provides comprehensive details (full body, all comments, timestamps, labels, etc.)."
+            description = "Optional output format for search results (light/rich, default: light). Light format provides minimal information (title, status, URL, assignees/author, truncated body up to 100 chars, comment count, linked resources), rich format provides comprehensive details (full body, all comments, timestamps, labels, etc.)."
         )]
         #[schemars(default)]
         output_option: Option<OutputOption>,
@@ -381,13 +385,13 @@ impl GitInsightTools {
         let limit = limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
         let format = output_option.unwrap_or_default();
 
-        let repositories = if let Some(repo_id_str) = repository_id {
+        let repository_urls = if let Some(repo_url_str) = repository_url {
             // Search in specific repository
             let repo_id =
-                crate::types::RepositoryId::parse_url(&crate::types::RepositoryUrl(repo_id_str))
+                crate::types::RepositoryId::parse_url(&crate::types::RepositoryUrl(repo_url_str))
                     .map_err(|e| {
-                        McpError::internal_error(format!("Invalid repository ID: {}", e), None)
-                    })?;
+                    McpError::internal_error(format!("Invalid repository ID: {}", e), None)
+                })?;
             vec![repo_id]
         } else {
             // Search across all repositories in the profile
@@ -400,7 +404,7 @@ impl GitInsightTools {
         // Search across repositories
         let search_results = functions::search::search_resources(
             &github_client,
-            repositories,
+            repository_urls,
             query,
             Some(limit as u32),
             cursors,
@@ -519,7 +523,7 @@ Examples:
 // Search in specific repository
 {{"name": "search_across_repositories", "arguments": {{
     "query": "authentication",
-    "repository_id": "https://github.com/tokio-rs/tokio",
+    "repository_url": "https://github.com/tokio-rs/tokio",
     "limit": 50
 }}}}
 
@@ -533,7 +537,7 @@ Examples:
 // Search with pagination cursors
 {{"name": "search_across_repositories", "arguments": {{
     "query": "performance",
-    "cursors": [{{"repository_id": "rust-lang/rust", "cursor": "Y3Vyc29yOnYyOpK5"}}]
+    "cursors": [{{"repository_id": {{"owner": "rust-lang", "repository_name": "rust"}}, "cursor": "Y3Vyc29yOnYyOpK5"}}]
 }}}}
 ```
 

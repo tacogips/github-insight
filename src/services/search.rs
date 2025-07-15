@@ -35,7 +35,7 @@ impl SearchService {
             .map(|cursors| {
                 cursors
                     .iter()
-                    .map(|c| (c.repositor_id.clone(), c.cursor.clone()))
+                    .map(|c| (c.repository_id.clone(), c.cursor.clone()))
                     .collect()
             })
             .unwrap_or_default();
@@ -79,7 +79,7 @@ impl SearchService {
                         cursor: pager
                             .next_page_cursor
                             .unwrap_or_else(|| crate::types::SearchCursor("".to_string())),
-                        repositor_id: search_result.repository_id,
+                        repository_id: search_result.repository_id,
                     });
                 }
             }
