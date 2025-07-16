@@ -22,7 +22,7 @@ A powerful Model Context Protocol (MCP) server that provides AI assistants with 
 ### 🎯 **Direct Resource Access**
 - Fetch issues and pull requests by URL
 - Get detailed information including comments, reviews, and metadata
-- Access repository information and statistics
+- Access repository information and statistics with comprehensive metadata
 - Timeline events and comprehensive issue tracking
 
 ### 🔧 **Profile Management**
@@ -146,6 +146,25 @@ Retrieve comprehensive pull request data including reviews and commits, formatte
 }
 ```
 
+### `get_repository_details`
+Fetch detailed repository information including metadata, statistics, and configuration by URLs, formatted as markdown with comprehensive details including description, primary language, creation/update dates, milestones, labels, and mentionable users.
+
+```json
+// Get all repositories from profile
+{"repository_urls": null}
+
+// Get specific repository
+{"repository_urls": ["https://github.com/owner/repo"]}
+
+// Get multiple repositories
+{
+  "repository_urls": [
+    "https://github.com/owner/repo1",
+    "https://github.com/owner/repo2"
+  ]
+}
+```
+
 ### `search_across_repositories`
 Powerful search across multiple repositories with advanced filtering and flexible output formatting. Use `get_issues_details` and `get_pull_request_details` functions to get more detailed information.
 
@@ -227,6 +246,9 @@ github-insight-cli get-issues https://github.com/owner/repo/issues/123
 
 # Get specific pull request
 github-insight-cli get-pull-requests https://github.com/owner/repo/pull/456
+
+# Get specific repository
+github-insight-cli get-repositories https://github.com/owner/repo
 ```
 
 ### Profile Management

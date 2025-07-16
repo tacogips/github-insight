@@ -1,14 +1,16 @@
 pub mod issue;
 pub mod project_resource;
 pub mod pull_request;
+pub mod repository;
 
-use crate::types::{GitRepository, Project};
+use crate::types::Project;
 use chrono::{DateTime, FixedOffset, Local, Utc};
 use serde::{Deserialize, Serialize};
 
 pub use issue::*;
 pub use project_resource::*;
 pub use pull_request::*;
+pub use repository::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct MarkdownContent(pub String);
@@ -194,62 +196,6 @@ pub fn project_body_markdown_with_timezone(
             ));
         }
     }
-
-    MarkdownContent(content)
-}
-
-pub fn repository_body_markdown(repository: &GitRepository) -> MarkdownContent {
-    repository_body_markdown_with_timezone(repository, None)
-}
-
-pub fn repository_body_markdown_with_timezone(
-    repository: &GitRepository,
-    timezone: Option<&TimezoneOffset>,
-) -> MarkdownContent {
-    let mut content = String::new();
-
-    // Header
-    content.push_str(&format!(
-        "# REPOSITORY: {}\n",
-        repository.git_repository_id.short_name()
-    ));
-    content.push_str(&format!(
-        "full_name: {}\n",
-        repository.git_repository_id.full_name()
-    ));
-    content.push_str(&format!(
-        "owner: {}\n",
-        repository.git_repository_id.owner()
-    ));
-    content.push_str(&format!("url: {}\n\n", repository.git_repository_id.url()));
-
-    // Description
-    content.push_str("## description\n");
-    if let Some(description) = &repository.description {
-        content.push_str(description);
-    } else {
-        content.push_str("(No description provided)");
-    }
-    content.push_str("\n\n");
-
-    // Statistics
-    content.push_str("## statistics\n");
-    // TODO: Add stars and forks when available in GitRepository struct
-    if let Some(language) = &repository.language {
-        content.push_str(&format!("- Primary language: {}\n", language));
-    }
-    content.push('\n');
-
-    // Metadata
-    content.push_str("## metadata\n");
-    content.push_str(&format!(
-        "- Created: {}\n",
-        format_datetime_with_timezone_offset(repository.created_at, timezone)
-    ));
-    content.push_str(&format!(
-        "- Updated: {}\n",
-        format_datetime_with_timezone_offset(repository.updated_at, timezone)
-    ));
 
     MarkdownContent(content)
 }

@@ -17,6 +17,7 @@ use crate::formatter::{
     pull_request::{
         pull_request_body_markdown_with_timezone, pull_request_body_markdown_with_timezone_light,
     },
+    repository::repository_body_markdown_with_timezone,
 };
 use crate::github::GitHubClient;
 use crate::services::{ProfileService, default_profile_config_dir};
@@ -346,6 +347,72 @@ impl GitInsightTools {
     }
 
     #[tool(
+        description = "Get repository details by URLs. Returns detailed repository information formatted as markdown with comprehensive metadata including URL, description, default branch, mentionable users, labels, milestones, and timestamps."
+    )]
+    async fn get_repository_details(
+        &self,
+        #[tool(param)]
+        #[schemars(
+            description = "Optional repository URLs to fetch. If not provided, fetches all repositories from the profile. Examples: ['https://github.com/rust-lang/rust', 'https://github.com/tokio-rs/tokio']"
+        )]
+        repository_urls: Option<Vec<String>>,
+    ) -> Result<CallToolResult, McpError> {
+        let github_client = GitHubClient::new(self.github_token.clone(), None).map_err(|e| {
+            McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
+        })?;
+
+        let repository_urls = if let Some(urls) = repository_urls {
+            // Use provided URLs
+            urls.into_iter()
+                .map(crate::types::RepositoryUrl)
+                .collect::<Vec<_>>()
+        } else {
+            // Load repositories from profile
+            let repo_ids = match self.load_profile_repositories() {
+                Ok(ids) => ids,
+                Err(error_result) => return Ok(error_result),
+            };
+
+            // Convert RepositoryIds to RepositoryUrls
+            repo_ids
+                .into_iter()
+                .map(|repo_id| {
+                    crate::types::RepositoryUrl(format!(
+                        "https://github.com/{}/{}",
+                        repo_id.owner, repo_id.repository_name
+                    ))
+                })
+                .collect()
+        };
+
+        // Fetch repositories using the multiple repositories function
+        let repositories =
+            functions::repository::get_multiple_repository_details(&github_client, repository_urls)
+                .await
+                .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+
+        // Format all repositories as markdown
+        let mut content_vec = Vec::new();
+
+        for repository in repositories {
+            let formatted =
+                repository_body_markdown_with_timezone(&repository, self.timezone.as_ref());
+            content_vec.push(Content::text(formatted.0));
+        }
+
+        if content_vec.is_empty() {
+            content_vec.push(Content::text(
+                "No repositories found for the provided URLs.".to_string(),
+            ));
+        }
+
+        Ok(CallToolResult {
+            content: content_vec,
+            is_error: Some(false),
+        })
+    }
+
+    #[tool(
         description = "Search across all registered repositories for issues, PRs, and projects. Comprehensive search across multiple resource types. Use get_issues_details and get_pull_request_details functions to get more detailed information. 
 
 Pagination with cursors:
@@ -527,7 +594,22 @@ Examples:
 {{"name": "get_pull_request_details", "arguments": {{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}}}}
 ```
 
-### 4. search_across_repositories
+### 4. get_repository_details
+Get repository details by URLs. Returns detailed repository information formatted as markdown array with comprehensive metadata including description, statistics, and configuration details.
+
+Examples:
+```json
+// Get all repository details from profile
+{{"name": "get_repository_details", "arguments": {{}}}}
+
+// Get single repository details
+{{"name": "get_repository_details", "arguments": {{"repository_urls": ["https://github.com/rust-lang/rust"]}}}}
+
+// Get multiple repository details
+{{"name": "get_repository_details", "arguments": {{"repository_urls": ["https://github.com/rust-lang/rust", "https://github.com/tokio-rs/tokio"]}}}}
+```
+
+### 5. search_across_repositories
 Search across all registered repositories for issues, PRs, and projects. Comprehensive search across multiple resource types with support for specific repository targeting and advanced pagination.
 
 Examples:

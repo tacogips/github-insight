@@ -22,7 +22,8 @@ use github_insight::tools::functions;
 use github_insight::types::project::{ProjectNumber, ProjectUrl};
 use github_insight::types::repository::{Owner, RepositoryName};
 use github_insight::types::{
-    IssueUrl, OutputOption, ProfileName, ProjectId, PullRequestUrl, RepositoryId, SearchQuery,
+    IssueUrl, OutputOption, ProfileName, ProjectId, PullRequestUrl, RepositoryId, RepositoryUrl,
+    SearchQuery,
 };
 
 #[derive(Parser)]
@@ -168,6 +169,11 @@ enum Commands {
         /// GitHub pull request URLs to fetch detailed information from - supports multiple URLs for batch processing
         urls: Vec<String>,
     },
+    /// Fetch detailed repository information including metadata, statistics, and configuration by URLs
+    GetRepositories {
+        /// GitHub repository URLs to fetch detailed information from - supports multiple URLs for batch processing
+        urls: Vec<String>,
+    },
 }
 
 #[tokio::main]
@@ -190,7 +196,6 @@ async fn main() -> Result<()> {
     // Get GitHub token from CLI or environment
     let github_token = cli
         .github_token
-        .or_else(|| env::var("GITHUB_TOKEN").ok())
         .or_else(|| env::var("GITHUB_INSIGHT_GITHUB_TOKEN").ok());
 
     // Parse timezone if provided, otherwise use local timezone
@@ -357,6 +362,17 @@ async fn main() -> Result<()> {
                 &cli.format,
                 &github_token,
                 &timezone,
+                cli.request_timeout.map(Duration::from_secs),
+            )
+            .await?;
+        }
+        Commands::GetRepositories { urls } => {
+            let repository_urls: Vec<RepositoryUrl> =
+                urls.iter().map(|url| RepositoryUrl(url.clone())).collect();
+            handle_get_repositories_command(
+                repository_urls,
+                &cli.format,
+                &github_token,
                 cli.request_timeout.map(Duration::from_secs),
             )
             .await?;
@@ -637,6 +653,95 @@ async fn handle_get_pull_requests_command(
             }
             if !found_prs {
                 println!("No pull requests found for the provided URLs.");
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Handle get repositories command
+async fn handle_get_repositories_command(
+    repository_urls: Vec<RepositoryUrl>,
+    format: &OutputFormat,
+    github_token: &Option<String>,
+    request_timeout: Option<Duration>,
+) -> Result<()> {
+    let github_client = GitHubClient::new(github_token.clone(), request_timeout)
+        .map_err(|e| anyhow::anyhow!("Failed to create GitHub client: {}", e))?;
+
+    let repositories =
+        functions::repository::get_multiple_repository_details(&github_client, repository_urls)
+            .await?;
+
+    // Output results
+    match format {
+        OutputFormat::Json => {
+            let json_output = serde_json::to_string_pretty(&repositories)?;
+            println!("{}", json_output);
+        }
+        OutputFormat::Markdown => {
+            if repositories.is_empty() {
+                println!("No repositories found for the provided URLs.");
+            } else {
+                for repo in repositories {
+                    println!("# {}", repo.git_repository_id.repository_name);
+                    println!("**URL**: {}", repo.git_repository_id.url());
+                    println!("**Owner**: {}", repo.git_repository_id.owner);
+                    println!(
+                        "**Description**: {}",
+                        repo.description
+                            .unwrap_or_else(|| "No description".to_string())
+                    );
+                    println!(
+                        "**Language**: {}",
+                        repo.language.unwrap_or_else(|| "Unknown".to_string())
+                    );
+                    println!(
+                        "**Default Branch**: {}",
+                        repo.default_branch
+                            .as_ref()
+                            .map(|b| b.as_str())
+                            .unwrap_or("Unknown")
+                    );
+                    println!("**Created**: {}", repo.created_at);
+                    println!("**Updated**: {}", repo.updated_at);
+
+                    // Show actual milestones
+                    if !repo.milestones.is_empty() {
+                        println!("**Milestones**: {} milestone(s)", repo.milestones.len());
+                        for milestone in &repo.milestones {
+                            println!(
+                                "  - {} (ID: {})",
+                                milestone.milestone_name, milestone.milestone_id
+                            );
+                        }
+                    } else {
+                        println!("**Milestones**: 0 milestone(s)");
+                    }
+
+                    // Show actual labels
+                    if !repo.labels.is_empty() {
+                        println!("**Labels**: {} label(s)", repo.labels.len());
+                        for label in &repo.labels {
+                            println!("  - {}", label.name());
+                        }
+                    } else {
+                        println!("**Labels**: 0 label(s)");
+                    }
+
+                    // Show actual users
+                    if !repo.users.is_empty() {
+                        println!("**Users**: {} user(s)", repo.users.len());
+                        for user in &repo.users {
+                            println!("  - {}", user.as_str());
+                        }
+                    } else {
+                        println!("**Users**: 0 user(s)");
+                    }
+
+                    println!("---");
+                }
             }
         }
     }
