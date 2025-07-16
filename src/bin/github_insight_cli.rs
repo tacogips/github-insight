@@ -196,7 +196,6 @@ async fn main() -> Result<()> {
     // Get GitHub token from CLI or environment
     let github_token = cli
         .github_token
-        .or_else(|| env::var("GITHUB_TOKEN").ok())
         .or_else(|| env::var("GITHUB_INSIGHT_GITHUB_TOKEN").ok());
 
     // Parse timezone if provided, otherwise use local timezone
@@ -707,9 +706,40 @@ async fn handle_get_repositories_command(
                     );
                     println!("**Created**: {}", repo.created_at);
                     println!("**Updated**: {}", repo.updated_at);
-                    println!("**Milestones**: {} milestone(s)", repo.milestones.len());
-                    println!("**Labels**: {} label(s)", repo.labels.len());
-                    println!("**Users**: {} user(s)", repo.users.len());
+
+                    // Show actual milestones
+                    if !repo.milestones.is_empty() {
+                        println!("**Milestones**: {} milestone(s)", repo.milestones.len());
+                        for milestone in &repo.milestones {
+                            println!(
+                                "  - {} (ID: {})",
+                                milestone.milestone_name, milestone.milestone_id
+                            );
+                        }
+                    } else {
+                        println!("**Milestones**: 0 milestone(s)");
+                    }
+
+                    // Show actual labels
+                    if !repo.labels.is_empty() {
+                        println!("**Labels**: {} label(s)", repo.labels.len());
+                        for label in &repo.labels {
+                            println!("  - {}", label.name());
+                        }
+                    } else {
+                        println!("**Labels**: 0 label(s)");
+                    }
+
+                    // Show actual users
+                    if !repo.users.is_empty() {
+                        println!("**Users**: {} user(s)", repo.users.len());
+                        for user in &repo.users {
+                            println!("  - {}", user.as_str());
+                        }
+                    } else {
+                        println!("**Users**: 0 user(s)");
+                    }
+
                     println!("---");
                 }
             }

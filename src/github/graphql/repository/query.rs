@@ -40,7 +40,6 @@ pub fn repository_query() -> String {
                     nodes {
                         login
                         name
-                        email
                         avatarUrl
                     }
                 }
