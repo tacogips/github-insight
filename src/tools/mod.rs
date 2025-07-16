@@ -347,7 +347,7 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Get repository details by URLs. Returns detailed repository information formatted as markdown array with comprehensive metadata including description, statistics, and configuration details."
+        description = "Get repository details by URLs. Returns detailed repository information formatted as markdown with comprehensive metadata including URL, description, default branch, mentionable users, labels, milestones, and timestamps."
     )]
     async fn get_repository_details(
         &self,
