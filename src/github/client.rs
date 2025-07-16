@@ -7,6 +7,7 @@ use crate::github::graphql::graphql_types::GraphQLQuery;
 use crate::github::graphql::graphql_types::issue::MultipleIssuesResponse;
 use crate::github::graphql::graphql_types::project::ProjectResourcesResponse;
 use crate::github::graphql::graphql_types::pull_request::MultiplePullRequestsResponse;
+use crate::github::graphql::graphql_types::repository::RepositoryResponse;
 use crate::github::graphql::issue::{
     IssueQueryLimitSize, MultipleIssueVariable, multi_issue_query,
 };
@@ -17,6 +18,7 @@ use crate::github::graphql::pull_request::query::PullRequestQueryLimitSize;
 use crate::github::graphql::pull_request::query::{
     MultiplePullRequestVariable, multi_pull_reqeust_query,
 };
+use crate::github::graphql::repository::query::{RepositoryVariable, repository_query};
 use crate::github::graphql::search::overwrite_repo_if_exists;
 use crate::github::graphql::search::{SearchVariable, search_query};
 use crate::types::ProjectResource;
@@ -570,6 +572,87 @@ impl GitHubClient {
         );
 
         Ok(all_resources)
+    }
+
+    /// Fetches a single repository by its identifier
+    ///
+    /// This method retrieves comprehensive repository information including metadata,
+    /// milestones, labels, and other properties using GitHub's GraphQL API.
+    ///
+    /// # Arguments
+    ///
+    /// * `repository_id` - The repository identifier containing owner and repository name
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result` containing a `GithubRepository` with complete repository information
+    /// including description, primary language, creation/update timestamps, milestones, labels,
+    /// and default branch information.
+    ///
+    /// # Errors
+    ///
+    /// This method can return errors in the following cases:
+    /// - GraphQL API request failures (network issues, authentication problems)
+    /// - Repository not found or access permission issues
+    /// - Rate limiting by GitHub API
+    /// - JSON parsing errors when converting GraphQL response to domain objects
+    /// - Timeout errors if the request takes longer than configured timeout
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use github_insight::github::client::GitHubClient;
+    /// use github_insight::types::RepositoryId;
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = GitHubClient::new(Some("token".to_string()), None)?;
+    /// let repo_id = RepositoryId::new("rust-lang".to_string(), "rust".to_string());
+    ///
+    /// // Fetch repository information
+    /// let repository = client.fetch_repository(repo_id).await?;
+    ///
+    /// println!("Repository: {}", repository.git_repository_id);
+    /// println!("Description: {:?}", repository.description);
+    /// println!("Language: {:?}", repository.language);
+    /// println!("Created: {}", repository.created_at);
+    /// println!("Milestones: {}", repository.milestones.len());
+    /// println!("Labels: {}", repository.labels.len());
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn fetch_repository(
+        &self,
+        repository_id: crate::types::RepositoryId,
+    ) -> Result<crate::types::GithubRepository> {
+        let query = repository_query();
+        let variables = RepositoryVariable {
+            owner: repository_id.owner().clone(),
+            repository_name: repository_id.repo_name().clone(),
+        };
+
+        let payload = GraphQLPayload {
+            query: GraphQLQuery(query),
+            variables: Some(variables),
+        };
+
+        // Execute GraphQL query
+        let response: crate::github::graphql::graphql_types::GraphQLResponse<RepositoryResponse> =
+            self.execute_graphql("fetch_repository", payload).await?;
+
+        // Handle response and extract data
+        let data = response
+            .data
+            .ok_or_else(|| anyhow::anyhow!("No data in GraphQL repository response"))?;
+
+        let repository_node = data
+            .repository
+            .ok_or_else(|| anyhow::anyhow!("Repository not found: {}", repository_id))?;
+
+        // Convert GraphQL response to domain object
+        let repository = crate::types::GithubRepository::try_from(repository_node)
+            .context(format!("Failed to convert repository: {}", repository_id))?;
+
+        Ok(repository)
     }
 }
 

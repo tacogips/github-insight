@@ -4,7 +4,8 @@ use std::collections::BTreeMap;
 
 use crate::github::GitHubClient;
 use crate::types::{
-    Issue, IssueNumber, ProjectId, ProjectResource, PullRequest, PullRequestNumber, RepositoryId,
+    GithubRepository, Issue, IssueNumber, ProjectId, ProjectResource, PullRequest,
+    PullRequestNumber, RepositoryId,
 };
 
 /// Coordinates batch fetching of multiple resources
@@ -131,5 +132,18 @@ impl MultiResourceFetcher {
         self.github_client
             .fetch_all_project_resources(project_id)
             .await
+    }
+
+    /// Fetches a single repository by its identifier
+    ///
+    /// # Arguments
+    ///
+    /// * `repository_id` - The repository identifier containing owner and repository name
+    ///
+    /// # Returns
+    ///
+    /// Returns a GithubRepository with complete repository information
+    pub async fn fetch_repository(&self, repository_id: RepositoryId) -> Result<GithubRepository> {
+        self.github_client.fetch_repository(repository_id).await
     }
 }

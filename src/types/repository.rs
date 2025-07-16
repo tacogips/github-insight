@@ -11,6 +11,22 @@ use regex::Regex;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use super::{User, label::Label};
+use crate::github::graphql::graphql_types::repository::RepositoryNode;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+pub struct Branch(pub String);
+
+impl Branch {
+    pub fn new<T: Into<String>>(branch: T) -> Self {
+        Self(branch.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 /// Repository URL wrapper for type safety
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 pub struct RepositoryUrl(pub String);
@@ -249,16 +265,19 @@ impl std::fmt::Display for RepositoryId {
 /// Contains repository metadata and relationships, including milestones
 /// for search filtering support.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GitRepository {
+pub struct GithubRepository {
     pub git_repository_id: RepositoryId,
     pub description: Option<String>,
     pub language: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub milestones: Vec<RepositoryMilestone>,
+    pub default_branch: Option<Branch>,
+    pub labels: Vec<Label>,
+    pub users: Vec<User>,
 }
 
-impl GitRepository {
+impl GithubRepository {
     /// Create new repository with basic metadata
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -267,26 +286,10 @@ impl GitRepository {
         language: Option<String>,
         created_at: DateTime<Utc>,
         updated_at: DateTime<Utc>,
-    ) -> Self {
-        Self {
-            git_repository_id,
-            description,
-            language,
-            created_at,
-            updated_at,
-            milestones: Vec::new(),
-        }
-    }
-
-    /// Create new repository with milestones
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_with_milestones(
-        git_repository_id: RepositoryId,
-        description: Option<String>,
-        language: Option<String>,
-        created_at: DateTime<Utc>,
-        updated_at: DateTime<Utc>,
         milestones: Vec<RepositoryMilestone>,
+        default_branch: Option<Branch>,
+        labels: Vec<Label>,
+        users: Vec<User>,
     ) -> Self {
         Self {
             git_repository_id,
@@ -295,11 +298,81 @@ impl GitRepository {
             created_at,
             updated_at,
             milestones,
+            default_branch,
+            labels,
+            users,
         }
     }
 
     /// Get repository identifier
     pub fn repository_id(&self) -> RepositoryId {
         self.git_repository_id.clone()
+    }
+}
+
+impl TryFrom<RepositoryNode> for GithubRepository {
+    type Error = anyhow::Error;
+
+    fn try_from(node: RepositoryNode) -> Result<Self, Self::Error> {
+        use anyhow::Context;
+
+        // Parse timestamps
+        let created_at = chrono::DateTime::parse_from_rfc3339(&node.created_at)
+            .context("Failed to parse created_at timestamp")?
+            .with_timezone(&Utc);
+
+        let updated_at = chrono::DateTime::parse_from_rfc3339(&node.updated_at)
+            .context("Failed to parse updated_at timestamp")?
+            .with_timezone(&Utc);
+
+        // Create repository ID
+        let repository_id = RepositoryId::new(node.owner.login, node.name);
+
+        // Convert primary language
+        let language = node.primary_language.map(|lang| lang.name);
+
+        // Convert default branch
+        let default_branch = node
+            .default_branch_ref
+            .map(|branch_ref| Branch::new(branch_ref.name));
+
+        // Convert milestones
+        let milestones = node
+            .milestones
+            .nodes
+            .into_iter()
+            .map(|milestone| RepositoryMilestone {
+                milestone_id: milestone.number,
+                milestone_name: milestone.title,
+            })
+            .collect();
+
+        // Convert labels
+        let labels = node
+            .labels
+            .nodes
+            .into_iter()
+            .map(|label_node| Label::new(label_node.name))
+            .collect();
+
+        // Convert mentionable users
+        let users = node
+            .mentionable_users
+            .nodes
+            .into_iter()
+            .map(|user_node| User::new(user_node.login))
+            .collect();
+
+        Ok(GithubRepository::new(
+            repository_id,
+            node.description,
+            language,
+            created_at,
+            updated_at,
+            milestones,
+            default_branch,
+            labels,
+            users,
+        ))
     }
 }

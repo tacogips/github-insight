@@ -1,3 +1,4 @@
+use crate::github::graphql::graphql_types::LabelsConnection;
 use serde::{Deserialize, Serialize};
 
 /// Wrapper type for milestone numbers providing type safety
@@ -31,4 +32,71 @@ pub struct Repository {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RepositoryOwner {
     pub login: String,
+}
+
+/// GraphQL response type for a single repository query
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RepositoryResponse {
+    pub repository: Option<RepositoryNode>,
+}
+
+/// Repository node from GraphQL response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RepositoryNode {
+    pub name: String,
+    pub description: Option<String>,
+    #[serde(rename = "primaryLanguage")]
+    pub primary_language: Option<PrimaryLanguage>,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+    #[serde(rename = "defaultBranchRef")]
+    pub default_branch_ref: Option<BranchRef>,
+    pub milestones: MilestonesConnection,
+    pub labels: LabelsConnection,
+    pub owner: RepositoryOwner,
+    #[serde(rename = "mentionableUsers")]
+    pub mentionable_users: MentionableUsersConnection,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrimaryLanguage {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BranchRef {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MilestonesConnection {
+    pub nodes: Vec<MilestoneNode>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MilestoneNode {
+    pub number: u64,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MentionableUsersConnection {
+    pub nodes: Vec<MentionableUserNode>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MentionableUserNode {
+    pub login: String,
+    pub name: Option<String>,
+    pub email: Option<String>,
+    #[serde(rename = "avatarUrl")]
+    pub avatar_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LabelNode {
+    pub name: String,
+    pub color: String,
 }
