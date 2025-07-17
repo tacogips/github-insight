@@ -105,20 +105,25 @@ Add to your Claude Desktop configuration:
 ## MCP Tools
 
 ### `get_project_resources`
-Retrieve detailed project information including associated issues and pull requests with comprehensive pagination support. Use `get_issues_details` and `get_pull_request_details` functions to get more detailed information.
+Retrieve detailed project information including associated issues and pull requests with comprehensive pagination support. Supports light/rich output format (default: rich). Use `get_issues_details` and `get_pull_request_details` functions to get more detailed information.
 
 ```json
-// Get all projects from profile
+// Get all projects from profile (default: rich format)
 {"project_url": null}
 
 // Get specific project
 {"project_url": "https://github.com/users/username/projects/1"}
 
-// Get project with pagination
+// Get project with light output format
 {
   "project_url": "https://github.com/users/username/projects/1",
-  "after": "cursor_token_here",
-  "first": 50
+  "output_option": "light"
+}
+
+// Get project with rich output format (default)
+{
+  "project_url": "https://github.com/users/username/projects/1",
+  "output_option": "rich"
 }
 ```
 

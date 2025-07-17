@@ -140,3 +140,56 @@ pub fn project_resource_body_markdown_with_timezone(
 
     MarkdownContent(content)
 }
+
+pub fn project_resource_body_markdown_with_timezone_light(
+    project_resource: &ProjectResource,
+    _timezone: Option<&TimezoneOffset>,
+) -> MarkdownContent {
+    let mut content = String::new();
+
+    // Lightweight header - title and status only
+    let title = project_resource.title.as_deref().unwrap_or("(No title)");
+    content.push_str(&format!("# {}\n", title));
+    content.push_str(&format!("**{}**\n", project_resource.state));
+    content.push_str(&format!(
+        "**Column:** {}\n",
+        project_resource
+            .column_name
+            .as_deref()
+            .unwrap_or("No Status")
+    ));
+    content.push_str(&format!(
+        "**Project Item ID:** {}\n\n",
+        project_resource.project_item_id
+    ));
+
+    // Original resource reference
+    match &project_resource.original_resource {
+        ProjectOriginalResource::Issue(issue_id) => {
+            content.push_str("**Type:** Issue\n");
+            content.push_str(&format!("**URL:** {}\n\n", issue_id.url()));
+        }
+        ProjectOriginalResource::PullRequest(pr_id) => {
+            content.push_str("**Type:** Pull Request\n");
+            content.push_str(&format!("**URL:** {}\n\n", pr_id.url()));
+        }
+        ProjectOriginalResource::DraftIssue => {
+            content.push_str("**Type:** Draft Issue (project-only)\n\n");
+        }
+    }
+
+    // Assignees
+    if !project_resource.assignees.is_empty() {
+        content.push_str(&format!(
+            "**Assignees:** {}\n",
+            project_resource
+                .assignees
+                .iter()
+                .map(|u| u.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+
+    MarkdownContent(content)
+}

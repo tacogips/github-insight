@@ -13,7 +13,10 @@
 use crate::formatter::{
     TimezoneOffset,
     issue::{issue_body_markdown_with_timezone, issue_body_markdown_with_timezone_light},
-    project_resource::project_resource_body_markdown_with_timezone,
+    project_resource::{
+        project_resource_body_markdown_with_timezone,
+        project_resource_body_markdown_with_timezone_light,
+    },
     pull_request::{
         pull_request_body_markdown_with_timezone, pull_request_body_markdown_with_timezone_light,
     },
@@ -200,10 +203,25 @@ impl GitInsightTools {
             description = "Optional project URL to fetch resources from. If not provided, fetches all resources from all projects in the profile. Examples: 'https://github.com/users/username/projects/1', 'https://github.com/orgs/orgname/projects/5'"
         )]
         project_url: Option<String>,
+        #[tool(param)]
+        #[schemars(
+            description = "Optional output format for project resources (light/rich, default: rich). Light format provides minimal information, rich format provides comprehensive details."
+        )]
+        #[schemars(default)]
+        output_option: Option<String>,
     ) -> Result<CallToolResult, McpError> {
         let github_client = GitHubClient::new(self.github_token.clone(), None).map_err(|e| {
             McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
         })?;
+
+        // Parse output format option, defaulting to rich
+        let format = if let Some(option_str) = output_option {
+            option_str
+                .parse::<OutputOption>()
+                .unwrap_or(OutputOption::Rich)
+        } else {
+            OutputOption::Rich
+        };
 
         let mut content_vec = Vec::new();
 
@@ -216,10 +234,16 @@ impl GitInsightTools {
                     .map_err(|e| McpError::internal_error(e.to_string(), None))?;
 
             for project_resource in project_resources {
-                let formatted = project_resource_body_markdown_with_timezone(
-                    &project_resource,
-                    self.timezone.as_ref(),
-                );
+                let formatted = match format {
+                    OutputOption::Light => project_resource_body_markdown_with_timezone_light(
+                        &project_resource,
+                        self.timezone.as_ref(),
+                    ),
+                    OutputOption::Rich => project_resource_body_markdown_with_timezone(
+                        &project_resource,
+                        self.timezone.as_ref(),
+                    ),
+                };
                 content_vec.push(Content::text(formatted.0));
             }
         } else {
@@ -235,10 +259,16 @@ impl GitInsightTools {
                     .map_err(|e| McpError::internal_error(e.to_string(), None))?;
 
             for project_resource in project_resources {
-                let formatted = project_resource_body_markdown_with_timezone(
-                    &project_resource,
-                    self.timezone.as_ref(),
-                );
+                let formatted = match format {
+                    OutputOption::Light => project_resource_body_markdown_with_timezone_light(
+                        &project_resource,
+                        self.timezone.as_ref(),
+                    ),
+                    OutputOption::Rich => project_resource_body_markdown_with_timezone(
+                        &project_resource,
+                        self.timezone.as_ref(),
+                    ),
+                };
                 content_vec.push(Content::text(formatted.0));
             }
         }
@@ -569,11 +599,17 @@ Get all project resources from specified project(s). Returns all project resourc
 
 Examples:
 ```json
-// Get all project resources from all projects in profile
+// Get all project resources from all projects in profile (default: rich format)
 {{"name": "get_project_resources", "arguments": {{}}}}
 
 // Get resources from specific project
 {{"name": "get_project_resources", "arguments": {{"project_url": "https://github.com/users/username/projects/1"}}}}
+
+// Get resources with light format
+{{"name": "get_project_resources", "arguments": {{"output_option": "light"}}}}
+
+// Get resources with rich format (default)
+{{"name": "get_project_resources", "arguments": {{"output_option": "rich"}}}}
 ```
 
 ### 2. get_issues_details
@@ -652,10 +688,13 @@ Examples:
 3. **Project Management**:
    - Use get_project_resources to access project boards and associated resources
    - Fetch from all projects in profile or specific project URLs
+   - Choose between light and rich output formats (default: rich)
 
 4. **Output Formatting**:
-   - Rich format provides comprehensive details including full comments
+   - Rich format provides comprehensive details including full comments, timestamps, custom fields
    - Light format provides minimal information for quick overview
+   - get_project_resources defaults to rich format for detailed project information
+   - search_across_repositories defaults to light format for quick search results
 "#,
             auth_status
         );
