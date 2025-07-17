@@ -193,7 +193,7 @@ impl GitInsightTools {
 #[tool(tool_box)]
 impl GitInsightTools {
     #[tool(
-        description = "Get all project resources. Returns all project resources as markdown array including title, description, resource counts, and timestamps. This tool fetches all resources from the specified project(s) without pagination. Use get_issues_details and get_pull_request_details functions to get more detailed information. Examples: `{}` (all projects), `{\"project_url\": \"https://github.com/users/username/projects/1\"}` (specific project)"
+        description = "Get all project resources. Returns all project resources as markdown array including title, description, resource counts, and timestamps. This tool fetches all resources from the specified project(s) without pagination. Each project resource includes field IDs that can be used for project field updates. Use get_issues_details and get_pull_request_details functions to get more detailed information. Examples: `{}` (all projects), `{\"project_url\": \"https://github.com/users/username/projects/1\"}` (specific project)"
     )]
     async fn get_project_resources(
         &self,
@@ -641,7 +641,7 @@ GitInsight is a tool for searching GitHub repository data locally. It provides a
 ## Available Tools
 
 ### 1. get_project_resources
-Get all project resources from specified project(s). Returns all project resources as markdown array including title, description, resource counts, and timestamps. This tool fetches all resources without pagination.
+Get all project resources from specified project(s). Returns all project resources as markdown array including title, description, resource counts, and timestamps. Each project resource includes field IDs that can be used for project field updates. This tool fetches all resources without pagination.
 
 Examples:
 ```json
