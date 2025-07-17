@@ -151,6 +151,22 @@ Retrieve comprehensive pull request data including reviews and commits, formatte
 }
 ```
 
+### `get_project_details`
+Fetch detailed project information including metadata, configuration, and project node ID by URLs, formatted as markdown with comprehensive details including title, description, creation/update dates, project node ID, and other project properties. The project node ID can be used for project updates.
+
+```json
+// Get specific project details
+{"project_urls": ["https://github.com/users/username/projects/1"]}
+
+// Get multiple project details
+{
+  "project_urls": [
+    "https://github.com/users/username/projects/1",
+    "https://github.com/orgs/orgname/projects/5"
+  ]
+}
+```
+
 ### `get_repository_details`
 Fetch detailed repository information including metadata, statistics, and configuration by URLs, formatted as markdown with comprehensive details including description, primary language, creation/update dates, milestones, labels, and mentionable users.
 

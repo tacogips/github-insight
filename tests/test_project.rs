@@ -428,3 +428,119 @@ async fn test_multi_resource_fetcher_empty_project() {
 
     println!("MultiResourceFetcher empty project test completed successfully");
 }
+
+/// Test fetching a single project using fetch_project
+///
+/// This test verifies that the client can successfully fetch a single project
+/// with its metadata (title, description, timestamps) using the fetch_project function.
+#[tokio::test]
+#[serial]
+async fn test_fetch_project() {
+    // Initialize GitHub client with token (if available) and reasonable timeout
+    let client = create_test_github_client();
+
+    // Create project ID for the designated test project
+    // https://github.com/users/tacogips/projects/1
+    let project_id = ProjectId::new(
+        Owner::new("tacogips".to_string()),
+        ProjectNumber::new(1),
+        ProjectType::User,
+    );
+
+    // Fetch the project using fetch_project
+    let result = client.fetch_project(project_id.clone()).await;
+
+    // Verify the request succeeded
+    assert!(result.is_ok(), "Failed to fetch project: {:?}", result);
+
+    let project = result.unwrap();
+
+    println!("Successfully fetched project: {}", project.title);
+    println!("Project node ID: {}", project.project_node_id.0);
+    println!("Project created at: {}", project.created_at);
+    println!("Project updated at: {}", project.updated_at);
+    if let Some(ref description) = project.description {
+        println!("Project description: {}", description);
+    }
+
+    // Verify basic project properties
+    assert!(
+        !project.title.is_empty(),
+        "Project title should not be empty"
+    );
+    assert!(
+        !project.project_node_id.0.is_empty(),
+        "Project node ID should not be empty"
+    );
+    assert!(
+        project.created_at.timestamp() > 0,
+        "Created timestamp should be valid"
+    );
+    assert!(
+        project.updated_at.timestamp() > 0,
+        "Updated timestamp should be valid"
+    );
+    assert!(
+        project.created_at <= project.updated_at,
+        "Created timestamp should be before or equal to updated timestamp"
+    );
+
+    // Verify project ID matches what we requested
+    assert_eq!(
+        project.project_id, project_id,
+        "Project ID should match the requested ID"
+    );
+
+    // Verify project description is handled correctly
+    if let Some(ref description) = project.description {
+        assert!(
+            !description.is_empty(),
+            "Project description should not be empty if present"
+        );
+    }
+
+    println!("Project fetch test completed successfully");
+}
+
+/// Test fetching a non-existent project using fetch_project
+///
+/// This test verifies that the client returns an error when trying to fetch
+/// a project that doesn't exist.
+#[tokio::test]
+#[serial]
+async fn test_fetch_non_existent_project_single() {
+    // Initialize GitHub client with token (if available) and reasonable timeout
+    let client = create_test_github_client();
+
+    // Create project ID for a non-existent project
+    let project_id = ProjectId::new(
+        Owner::new("tacogips".to_string()),
+        ProjectNumber::new(9999999),
+        ProjectType::User,
+    );
+
+    // Fetch the project using fetch_project
+    let result = client.fetch_project(project_id).await;
+
+    // The client should return an error for non-existent projects
+    assert!(
+        result.is_err(),
+        "Client should return error for non-existent projects"
+    );
+
+    let error = result.unwrap_err();
+    let error_msg = error.to_string();
+    assert!(
+        error_msg.contains("Project not found")
+            || error_msg.contains("Could not resolve to")
+            || error_msg.contains("User project not found")
+            || error_msg.contains("Organization project not found"),
+        "Error message should indicate project not found: {}",
+        error_msg
+    );
+
+    println!(
+        "Successfully detected non-existent project and returned error: {}",
+        error_msg
+    );
+}

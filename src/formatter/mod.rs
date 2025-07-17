@@ -1,13 +1,14 @@
 pub mod issue;
+pub mod project;
 pub mod project_resource;
 pub mod pull_request;
 pub mod repository;
 
-use crate::types::Project;
 use chrono::{DateTime, FixedOffset, Local, Utc};
 use serde::{Deserialize, Serialize};
 
 pub use issue::*;
+pub use project::*;
 pub use project_resource::*;
 pub use pull_request::*;
 pub use repository::*;
@@ -147,128 +148,4 @@ pub fn format_date_with_timezone_offset(
         }
         None => dt.format("%Y-%m-%d UTC").to_string(),
     }
-}
-
-pub fn project_body_markdown(project: &Project) -> MarkdownContent {
-    project_body_markdown_with_timezone(project, None)
-}
-
-pub fn project_body_markdown_with_timezone(
-    project: &Project,
-    timezone: Option<&TimezoneOffset>,
-) -> MarkdownContent {
-    let mut content = String::new();
-
-    // Header
-    content.push_str(&format!("# PROJECT: {}\n", project.title));
-    content.push_str(&format!("creator: {}\n", project.creator));
-    content.push_str(&format!("project_id: {}\n", project.project_id));
-    content.push_str(&format!("url: {}\n\n", project.url));
-
-    // Description
-    content.push_str("## description\n");
-    if let Some(description) = &project.description {
-        content.push_str(description);
-    } else {
-        content.push_str("(No description provided)");
-    }
-    content.push_str("\n\n");
-
-    // Metadata
-    content.push_str("## metadata\n");
-    content.push_str(&format!(
-        "- Created: {}\n",
-        format_datetime_with_timezone_offset(project.created_at, timezone)
-    ));
-    content.push_str(&format!(
-        "- Updated: {}\n",
-        format_datetime_with_timezone_offset(project.updated_at, timezone)
-    ));
-    content.push_str(&format!("- Total resources: {}\n", project.resources.len()));
-    content.push('\n');
-
-    // Resources
-    if !project.resources.is_empty() {
-        content.push_str("## resources\n");
-        // TODO: Update when resource_id type is changed from String and fields are updated
-        for resource in &project.resources {
-            content.push_str(&format!(
-                "- **Resource**: {} - Column: {:?}\n",
-                resource.project_item_id, resource.column_name
-            ));
-            content.push_str(&format!("  - State: {}\n", resource.state));
-            content.push_str(&format!(
-                "  - Created: {}\n",
-                format_datetime_with_timezone_offset(
-                    resource.created_at.unwrap_or_else(Utc::now),
-                    timezone
-                )
-            ));
-            content.push_str(&format!(
-                "  - Updated: {}\n\n",
-                format_datetime_with_timezone_offset(
-                    resource.updated_at.unwrap_or_else(Utc::now),
-                    timezone
-                )
-            ));
-        }
-    }
-
-    MarkdownContent(content)
-}
-
-pub fn project_resources_list_markdown(
-    project: &Project,
-    limit: usize,
-    timezone: Option<&TimezoneOffset>,
-) -> MarkdownContent {
-    let mut content = String::new();
-
-    content.push_str(&format!("# Project Resources: {}\n\n", project.title));
-
-    if let Some(desc) = &project.description {
-        content.push_str(&format!("{}\n\n", desc));
-    }
-
-    content.push_str(&format!("**Project URL:** {}\n\n", project.url));
-    content.push_str(&format!(
-        "**Total Resources:** {}\n\n",
-        project.resources.len()
-    ));
-
-    // Column names are not available in the current Project struct
-
-    content.push_str("## Resources\n\n");
-
-    // TODO: Update when resource_id type is changed from String and fields are updated
-    let display_resources = project.resources.iter().take(limit);
-    for resource in display_resources {
-        content.push_str(&format!("### Resource - {}\n\n", resource.project_item_id));
-        content.push_str(&format!("- **Column:** {:?}\n", resource.column_name));
-        content.push_str(&format!("- **State:** {}\n", resource.state));
-        content.push_str(&format!(
-            "- **Created:** {}\n",
-            format_datetime_with_timezone_offset(
-                resource.created_at.unwrap_or_else(Utc::now),
-                timezone
-            )
-        ));
-        content.push_str(&format!(
-            "- **Updated:** {}\n\n",
-            format_datetime_with_timezone_offset(
-                resource.updated_at.unwrap_or_else(Utc::now),
-                timezone
-            )
-        ));
-    }
-
-    if project.resources.len() > limit {
-        content.push_str(&format!(
-            "*Showing {} of {} resources*\n",
-            limit,
-            project.resources.len()
-        ));
-    }
-
-    MarkdownContent(content)
 }
