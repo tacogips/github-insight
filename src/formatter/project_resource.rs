@@ -1,6 +1,9 @@
 use crate::types::{ProjectOriginalResource, ProjectResource};
 
-use super::{MarkdownContent, TimezoneOffset, format_datetime_with_timezone_offset};
+use super::{
+    MarkdownContent, TimezoneOffset, format_date_with_timezone_offset,
+    format_datetime_with_timezone_offset,
+};
 
 /// Format a project resource into markdown without timezone conversion
 pub fn project_resource_body_markdown(project_resource: &ProjectResource) -> MarkdownContent {
@@ -37,6 +40,27 @@ pub fn project_resource_body_markdown_with_timezone(
 
     content.push('\n');
 
+    content.push_str("## Due date\n");
+    // Display start date
+    match project_resource.start_date {
+        Some(start) => content.push_str(&format!(
+            "- Start Date: {}\n",
+            format_date_with_timezone_offset(start, timezone)
+        )),
+        None => content.push_str("- Start Date: [Empty]\n"),
+    }
+
+    // Display end date
+    match project_resource.end_date {
+        Some(end) => content.push_str(&format!(
+            "- End Date: {}\n",
+            format_date_with_timezone_offset(end, timezone)
+        )),
+        None => content.push_str("- End Date: [Empty]\n"),
+    }
+
+    content.push('\n');
+
     // Original resource reference
     content.push_str("## Original resource\n");
     match &project_resource.original_resource {
@@ -63,6 +87,12 @@ pub fn project_resource_body_markdown_with_timezone(
 
     // Timestamps
     content.push_str("## timestamps\n");
+    if let Some(created_at) = project_resource.created_at {
+        content.push_str(&format!(
+            "- Created: {}\n",
+            format_datetime_with_timezone_offset(created_at, timezone)
+        ));
+    }
     if let Some(updated_at) = project_resource.updated_at {
         content.push_str(&format!(
             "- Updated: {}\n",

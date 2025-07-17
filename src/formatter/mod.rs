@@ -132,6 +132,23 @@ pub fn format_datetime_with_timezone_offset(
     }
 }
 
+/// Format a UTC date with the specified timezone offset (date only, no time).
+/// If timezone is None, defaults to UTC.
+pub fn format_date_with_timezone_offset(
+    dt: DateTime<Utc>,
+    timezone: Option<&TimezoneOffset>,
+) -> String {
+    match timezone {
+        Some(tz) => {
+            let local_dt = dt.with_timezone(&tz.to_fixed_offset());
+            local_dt
+                .format(&format!("%Y-%m-%d {}", tz.name))
+                .to_string()
+        }
+        None => dt.format("%Y-%m-%d UTC").to_string(),
+    }
+}
+
 pub fn project_body_markdown(project: &Project) -> MarkdownContent {
     project_body_markdown_with_timezone(project, None)
 }

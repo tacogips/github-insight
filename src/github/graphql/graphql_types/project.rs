@@ -129,6 +129,11 @@ pub enum FieldValue {
         field: FieldRef,
         name: Option<String>,
     },
+    #[serde(rename = "ProjectV2ItemFieldDateValue")]
+    Date {
+        field: FieldRef,
+        date: Option<String>,
+    },
     #[serde(other)]
     Other,
 }
@@ -260,6 +265,35 @@ impl TryFrom<ProjectItem> for ProjectResource {
                             );
                         }
                     }
+                    FieldValue::Date { field, date } => {
+                        if let Some(date_str) = date {
+                            // Parse the date string to DateTime<Utc>
+                            match chrono::NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")
+                                .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc())
+                            {
+                                Ok(date_time) => {
+                                    custom_field_values.push(ProjectCustomFieldValue {
+                                        field_id: field.id.clone(),
+                                        field_name: field.name.clone(),
+                                        value: ProjectFieldValue::Date(date_time),
+                                    });
+                                    tracing::debug!(
+                                        "Found date field: {} = {:?}",
+                                        field.name,
+                                        date_time
+                                    );
+                                }
+                                Err(e) => {
+                                    tracing::warn!(
+                                        "Failed to parse date field {}: {} - {}",
+                                        field.name,
+                                        date_str,
+                                        e
+                                    );
+                                }
+                            }
+                        }
+                    }
                     FieldValue::Other => {
                         // Skip unsupported field value types
                         tracing::debug!("Skipping unsupported field value type: Other");
@@ -342,6 +376,23 @@ impl TryFrom<ProjectItem> for ProjectResource {
 
                 let issue_id = IssueId::new(repository_id, issue_number as u32);
 
+                // Extract start and end dates from custom field values
+                let start_date = custom_field_values
+                    .iter()
+                    .find(|fv| is_start_date_field(&fv.field_name))
+                    .and_then(|fv| match &fv.value {
+                        ProjectFieldValue::Date(date) => Some(*date),
+                        _ => None,
+                    });
+
+                let end_date = custom_field_values
+                    .iter()
+                    .find(|fv| is_end_date_field(&fv.field_name))
+                    .and_then(|fv| match &fv.value {
+                        ProjectFieldValue::Date(date) => Some(*date),
+                        _ => None,
+                    });
+
                 Ok(ProjectResource {
                     resource_id: project_item.id,
                     title: Some(title.unwrap_or_default()),
@@ -354,6 +405,8 @@ impl TryFrom<ProjectItem> for ProjectResource {
                     column_name,
                     custom_field_values,
                     original_resource: ProjectOriginalResource::Issue(issue_id),
+                    start_date,
+                    end_date,
                 })
             }
             ProjectItemContent::PullRequest {
@@ -378,6 +431,23 @@ impl TryFrom<ProjectItem> for ProjectResource {
 
                 let pr_id = PullRequestId::new(repository_id, pr_number as u32);
 
+                // Extract start and end dates from custom field values
+                let start_date = custom_field_values
+                    .iter()
+                    .find(|fv| is_start_date_field(&fv.field_name))
+                    .and_then(|fv| match &fv.value {
+                        ProjectFieldValue::Date(date) => Some(*date),
+                        _ => None,
+                    });
+
+                let end_date = custom_field_values
+                    .iter()
+                    .find(|fv| is_end_date_field(&fv.field_name))
+                    .and_then(|fv| match &fv.value {
+                        ProjectFieldValue::Date(date) => Some(*date),
+                        _ => None,
+                    });
+
                 Ok(ProjectResource {
                     resource_id: project_item.id,
                     title: Some(title.unwrap_or_default()),
@@ -390,6 +460,8 @@ impl TryFrom<ProjectItem> for ProjectResource {
                     column_name,
                     custom_field_values,
                     original_resource: ProjectOriginalResource::PullRequest(pr_id),
+                    start_date,
+                    end_date,
                 })
             }
             ProjectItemContent::DraftIssue {
@@ -397,19 +469,40 @@ impl TryFrom<ProjectItem> for ProjectResource {
                 created_at,
                 updated_at,
                 ..
-            } => Ok(ProjectResource {
-                resource_id: project_item.id,
-                title: Some(title.unwrap_or_else(|| "Draft Issue".to_string())),
-                author: User::from("".to_string()),
-                assignees: vec![],
-                labels: vec![],
-                state: "draft".to_string(),
-                created_at: Some(created_at.unwrap_or_else(Utc::now)),
-                updated_at: Some(updated_at.unwrap_or_else(Utc::now)),
-                column_name,
-                custom_field_values,
-                original_resource: ProjectOriginalResource::DraftIssue,
-            }),
+            } => {
+                // Extract start and end dates from custom field values
+                let start_date = custom_field_values
+                    .iter()
+                    .find(|fv| is_start_date_field(&fv.field_name))
+                    .and_then(|fv| match &fv.value {
+                        ProjectFieldValue::Date(date) => Some(*date),
+                        _ => None,
+                    });
+
+                let end_date = custom_field_values
+                    .iter()
+                    .find(|fv| is_end_date_field(&fv.field_name))
+                    .and_then(|fv| match &fv.value {
+                        ProjectFieldValue::Date(date) => Some(*date),
+                        _ => None,
+                    });
+
+                Ok(ProjectResource {
+                    resource_id: project_item.id,
+                    title: Some(title.unwrap_or_else(|| "Draft Issue".to_string())),
+                    author: User::from("".to_string()),
+                    assignees: vec![],
+                    labels: vec![],
+                    state: "draft".to_string(),
+                    created_at: Some(created_at.unwrap_or_else(Utc::now)),
+                    updated_at: Some(updated_at.unwrap_or_else(Utc::now)),
+                    column_name,
+                    custom_field_values,
+                    original_resource: ProjectOriginalResource::DraftIssue,
+                    start_date,
+                    end_date,
+                })
+            }
             ProjectItemContent::Other => {
                 // For other unsupported content types
                 Err(anyhow::anyhow!(
@@ -419,4 +512,20 @@ impl TryFrom<ProjectItem> for ProjectResource {
             _ => Err(anyhow::anyhow!("Unsupported project item content type")),
         }
     }
+}
+
+/// Check if a field name matches start date patterns
+fn is_start_date_field(field_name: &str) -> bool {
+    field_name.eq_ignore_ascii_case("start")
+        || field_name.eq_ignore_ascii_case("start date")
+        || field_name.eq_ignore_ascii_case("startdate")
+}
+
+/// Check if a field name matches end date patterns
+fn is_end_date_field(field_name: &str) -> bool {
+    field_name.eq_ignore_ascii_case("end")
+        || field_name.eq_ignore_ascii_case("end date")
+        || field_name.eq_ignore_ascii_case("enddate")
+        || field_name.eq_ignore_ascii_case("due date")
+        || field_name.eq_ignore_ascii_case("deadline")
 }

@@ -230,6 +230,8 @@ pub struct ProjectResource {
     pub custom_field_values: Vec<ProjectCustomFieldValue>,
     /// Reference to the original issue or PR
     pub original_resource: ProjectOriginalResource,
+    pub start_date: Option<DateTime<Utc>>,
+    pub end_date: Option<DateTime<Utc>>,
 }
 
 /// Type of resource in a project
@@ -318,6 +320,8 @@ impl ProjectResource {
             column_name,
             custom_field_values: Vec::new(),
             original_resource,
+            start_date: None,
+            end_date: None,
         }
     }
 
