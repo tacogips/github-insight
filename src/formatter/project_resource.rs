@@ -149,8 +149,7 @@ pub fn project_resource_body_markdown_with_timezone_light(
 
     // Lightweight header - title and status only
     let title = project_resource.title.as_deref().unwrap_or("(No title)");
-    content.push_str(&format!("# {}\n", title));
-    content.push_str(&format!("**{}**\n", project_resource.state));
+    content.push_str(&format!("# {} ({})\n", title, project_resource.state));
     content.push_str(&format!(
         "**Column:** {}\n",
         project_resource
