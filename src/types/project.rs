@@ -63,6 +63,12 @@ impl std::fmt::Display for ProjectNumber {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 pub struct ProjectNodeId(pub String);
 
+impl std::fmt::Display for ProjectNodeId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Strong-typed project identifier with URL parsing capabilities.
 ///
 /// This struct encapsulates all project identification logic and URL parsing

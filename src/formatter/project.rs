@@ -12,9 +12,10 @@ pub fn project_body_markdown_with_timezone(
     let mut content = String::new();
 
     // Header
-    content.push_str(&format!("# PROJECT: {}\n", project.title));
-    content.push_str(&format!("project_id: {}\n", project.project_id));
+    content.push_str(&format!("# {}\n", project.title));
+
     content.push_str(&format!("url: {}\n\n", project.project_id.url()));
+    content.push_str(&format!("project_node_id: {}\n", project.project_node_id));
 
     // Description
     content.push_str("## description\n");

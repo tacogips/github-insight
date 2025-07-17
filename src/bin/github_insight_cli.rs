@@ -6,7 +6,7 @@ use tracing_subscriber::EnvFilter;
 
 use github_insight::formatter::{
     TimezoneOffset, issue_body_markdown_with_timezone, issue_body_markdown_with_timezone_light,
-    project_resource_body_markdown_with_timezone,
+    project_body_markdown_with_timezone, project_resource_body_markdown_with_timezone,
     project_resource_body_markdown_with_timezone_light, pull_request_body_markdown_with_timezone,
     pull_request_body_markdown_with_timezone_light, repository_body_markdown_with_timezone,
 };
@@ -176,6 +176,11 @@ enum Commands {
     /// Fetch detailed repository information including metadata, statistics, and configuration by URLs
     GetRepositories {
         /// GitHub repository URLs to fetch detailed information from - supports multiple URLs for batch processing
+        urls: Vec<String>,
+    },
+    /// Fetch detailed project information including metadata, description, and timestamps by URLs
+    GetProjects {
+        /// GitHub project URLs to fetch detailed information from - supports multiple URLs for batch processing
         urls: Vec<String>,
     },
 }
@@ -377,6 +382,18 @@ async fn main() -> Result<()> {
                 urls.iter().map(|url| RepositoryUrl(url.clone())).collect();
             handle_get_repositories_command(
                 repository_urls,
+                &cli.format,
+                &github_token,
+                &timezone,
+                cli.request_timeout.map(Duration::from_secs),
+            )
+            .await?;
+        }
+        Commands::GetProjects { urls } => {
+            let project_urls: Vec<ProjectUrl> =
+                urls.iter().map(|url| ProjectUrl(url.clone())).collect();
+            handle_get_projects_command(
+                project_urls,
                 &cli.format,
                 &github_token,
                 &timezone,
@@ -705,6 +722,44 @@ async fn handle_get_repositories_command(
                     let markdown_content =
                         repository_body_markdown_with_timezone(&repo, timezone.as_ref());
                     println!("{}", markdown_content.0);
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Handle get projects command
+async fn handle_get_projects_command(
+    project_urls: Vec<ProjectUrl>,
+    format: &OutputFormat,
+    github_token: &Option<String>,
+    timezone: &Option<TimezoneOffset>,
+    request_timeout: Option<Duration>,
+) -> Result<()> {
+    let github_client = GitHubClient::new(github_token.clone(), request_timeout)
+        .map_err(|e| anyhow::anyhow!("Failed to create GitHub client: {}", e))?;
+
+    let projects = functions::project::get_projects_details(&github_client, project_urls)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to get project details: {}", e))?;
+
+    // Output results
+    match format {
+        OutputFormat::Json => {
+            let json_output = serde_json::to_string_pretty(&projects)?;
+            println!("{}", json_output);
+        }
+        OutputFormat::Markdown => {
+            if projects.is_empty() {
+                println!("No projects found for the provided URLs.");
+            } else {
+                for project in projects {
+                    let markdown_content =
+                        project_body_markdown_with_timezone(&project, timezone.as_ref());
+                    println!("{}", markdown_content.0);
+                    println!("---");
                 }
             }
         }

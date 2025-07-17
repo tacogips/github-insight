@@ -443,6 +443,52 @@ impl GitInsightTools {
     }
 
     #[tool(
+        description = "Get project details by their URLs. Returns detailed project information formatted as markdown with comprehensive metadata including title, description, creation/update dates, project node ID, and other project properties. The project node ID can be used for project updates."
+    )]
+    async fn get_project_details(
+        &self,
+        #[tool(param)]
+        #[schemars(
+            description = "Project URLs to fetch. Examples: ['https://github.com/users/username/projects/1', 'https://github.com/orgs/orgname/projects/5']"
+        )]
+        project_urls: Vec<String>,
+    ) -> Result<CallToolResult, McpError> {
+        let github_client = GitHubClient::new(self.github_token.clone(), None).map_err(|e| {
+            McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
+        })?;
+
+        // Convert strings to ProjectUrl
+        let project_urls: Vec<ProjectUrl> = project_urls.into_iter().map(ProjectUrl).collect();
+
+        // Fetch projects using the existing function
+        let projects = functions::project::get_projects_details(&github_client, project_urls)
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+
+        // Format all projects as markdown
+        let mut content_vec = Vec::new();
+
+        for project in projects {
+            let formatted = crate::formatter::project::project_body_markdown_with_timezone(
+                &project,
+                self.timezone.as_ref(),
+            );
+            content_vec.push(Content::text(formatted.0));
+        }
+
+        if content_vec.is_empty() {
+            content_vec.push(Content::text(
+                "No projects found for the provided URLs.".to_string(),
+            ));
+        }
+
+        Ok(CallToolResult {
+            content: content_vec,
+            is_error: Some(false),
+        })
+    }
+
+    #[tool(
         description = "Search across all registered repositories for issues, PRs, and projects. Comprehensive search across multiple resource types. Use get_issues_details and get_pull_request_details functions to get more detailed information. 
 
 Pagination with cursors:
@@ -630,7 +676,16 @@ Examples:
 {{"name": "get_pull_request_details", "arguments": {{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}}}}
 ```
 
-### 4. get_repository_details
+### 4. get_project_details
+Get project details by their URLs. Returns detailed project information formatted as markdown with comprehensive metadata including title, description, creation/update dates, project node ID, and other project properties. The project node ID can be used for project updates.
+
+Examples:
+```json
+// Get specific projects by URLs
+{{"name": "get_project_details", "arguments": {{"project_urls": ["https://github.com/users/username/projects/1", "https://github.com/orgs/orgname/projects/5"]}}}}
+```
+
+### 5. get_repository_details
 Get repository details by URLs. Returns detailed repository information formatted as markdown array with comprehensive metadata including description, statistics, and configuration details.
 
 Examples:
@@ -645,7 +700,7 @@ Examples:
 {{"name": "get_repository_details", "arguments": {{"repository_urls": ["https://github.com/rust-lang/rust", "https://github.com/tokio-rs/tokio"]}}}}
 ```
 
-### 5. search_across_repositories
+### 6. search_across_repositories
 Search across all registered repositories for issues, PRs, and projects. Comprehensive search across multiple resource types with support for specific repository targeting and advanced pagination.
 
 Examples:
