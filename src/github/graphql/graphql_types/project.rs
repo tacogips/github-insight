@@ -4,7 +4,8 @@ use crate::types::{User, label::Label};
 use crate::types::{
     issue::IssueId,
     project::{
-        ProjectCustomFieldValue, ProjectFieldValue, ProjectOriginalResource, ProjectResource,
+        ProjectCustomFieldValue, ProjectFieldId, ProjectFieldName, ProjectFieldValue,
+        ProjectItemId, ProjectOriginalResource, ProjectResource,
     },
     pull_request::PullRequestId,
     repository::{RepositoryId, RepositoryUrl},
@@ -244,8 +245,8 @@ impl TryFrom<ProjectItem> for ProjectResource {
                     FieldValue::Text { field, text } => {
                         if let Some(ref text_value) = text {
                             custom_field_values.push(ProjectCustomFieldValue {
-                                field_id: field.id.clone(),
-                                field_name: field.name.clone(),
+                                field_id: ProjectFieldId(field.id.clone()),
+                                field_name: ProjectFieldName(field.name.clone()),
                                 value: ProjectFieldValue::Text(text_value.clone()),
                             });
                             tracing::debug!("Found text field: {} = {:?}", field.name, text_value);
@@ -254,8 +255,8 @@ impl TryFrom<ProjectItem> for ProjectResource {
                     FieldValue::SingleSelect { field, name } => {
                         if let Some(select_value) = name {
                             custom_field_values.push(ProjectCustomFieldValue {
-                                field_id: field.id.clone(),
-                                field_name: field.name.clone(),
+                                field_id: ProjectFieldId(field.id.clone()),
+                                field_name: ProjectFieldName(field.name.clone()),
                                 value: ProjectFieldValue::SingleSelect(select_value.clone()),
                             });
                             tracing::debug!(
@@ -273,8 +274,8 @@ impl TryFrom<ProjectItem> for ProjectResource {
                             {
                                 Ok(date_time) => {
                                     custom_field_values.push(ProjectCustomFieldValue {
-                                        field_id: field.id.clone(),
-                                        field_name: field.name.clone(),
+                                        field_id: ProjectFieldId(field.id.clone()),
+                                        field_name: ProjectFieldName(field.name.clone()),
                                         value: ProjectFieldValue::Date(date_time),
                                     });
                                     tracing::debug!(
@@ -394,7 +395,7 @@ impl TryFrom<ProjectItem> for ProjectResource {
                     });
 
                 Ok(ProjectResource {
-                    resource_id: project_item.id,
+                    project_item_id: ProjectItemId(project_item.id),
                     title: Some(title.unwrap_or_default()),
                     author: extract_author(&author),
                     assignees: extract_assignees(&assignees),
@@ -449,7 +450,7 @@ impl TryFrom<ProjectItem> for ProjectResource {
                     });
 
                 Ok(ProjectResource {
-                    resource_id: project_item.id,
+                    project_item_id: ProjectItemId(project_item.id),
                     title: Some(title.unwrap_or_default()),
                     author: extract_author(&author),
                     assignees: extract_assignees(&assignees),
@@ -488,7 +489,7 @@ impl TryFrom<ProjectItem> for ProjectResource {
                     });
 
                 Ok(ProjectResource {
-                    resource_id: project_item.id,
+                    project_item_id: ProjectItemId(project_item.id),
                     title: Some(title.unwrap_or_else(|| "Draft Issue".to_string())),
                     author: User::from("".to_string()),
                     assignees: vec![],
@@ -515,14 +516,14 @@ impl TryFrom<ProjectItem> for ProjectResource {
 }
 
 /// Check if a field name matches start date patterns
-fn is_start_date_field(field_name: &str) -> bool {
+fn is_start_date_field(field_name: &ProjectFieldName) -> bool {
     field_name.eq_ignore_ascii_case("start")
         || field_name.eq_ignore_ascii_case("start date")
         || field_name.eq_ignore_ascii_case("startdate")
 }
 
 /// Check if a field name matches end date patterns
-fn is_end_date_field(field_name: &str) -> bool {
+fn is_end_date_field(field_name: &ProjectFieldName) -> bool {
     field_name.eq_ignore_ascii_case("end")
         || field_name.eq_ignore_ascii_case("end date")
         || field_name.eq_ignore_ascii_case("enddate")

@@ -218,7 +218,7 @@ impl Project {
 /// Individual project item/resource within a GitHub project
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectResource {
-    pub resource_id: String,
+    pub project_item_id: ProjectItemId,
     pub title: Option<String>,
     pub author: User,
     pub assignees: Vec<User>,
@@ -273,9 +273,24 @@ pub enum ProjectCustomFieldType {
 /// Value of a custom field for a specific resource
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectCustomFieldValue {
-    pub field_id: String,
-    pub field_name: String,
+    pub field_id: ProjectFieldId,
+    pub field_name: ProjectFieldName,
     pub value: ProjectFieldValue,
+}
+
+/// Actual value of a custom field
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ProjectFieldType {
+    /// Text value
+    Text,
+    /// Number value
+    Number,
+    /// Date value
+    Date,
+    /// Single select value
+    SingleSelect,
+    /// Multi select values
+    MultiSelect,
 }
 
 /// Actual value of a custom field
@@ -297,7 +312,7 @@ impl ProjectResource {
     /// Create new project resource
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        resource_id: String,
+        project_item_id: ProjectItemId,
         title: String,
         author: String,
         assignees: Vec<String>,
@@ -309,7 +324,7 @@ impl ProjectResource {
         original_resource: ProjectOriginalResource,
     ) -> Self {
         Self {
-            resource_id,
+            project_item_id,
             title: Some(title),
             author: User::from(author),
             assignees: assignees.into_iter().map(User::from).collect(),
@@ -339,5 +354,38 @@ impl ProjectResource {
             ProjectOriginalResource::PullRequest(pr_id) => Some(pr_id),
             _ => None,
         }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectItemId(pub String);
+
+impl std::fmt::Display for ProjectItemId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectFieldId(pub String);
+
+impl std::fmt::Display for ProjectFieldId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectFieldName(pub String);
+
+impl std::fmt::Display for ProjectFieldName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl ProjectFieldName {
+    pub fn eq_ignore_ascii_case(&self, other: &str) -> bool {
+        self.0.eq_ignore_ascii_case(other)
     }
 }

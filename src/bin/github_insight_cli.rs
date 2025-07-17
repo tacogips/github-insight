@@ -6,7 +6,8 @@ use tracing_subscriber::EnvFilter;
 
 use github_insight::formatter::{
     TimezoneOffset, issue_body_markdown_with_timezone, issue_body_markdown_with_timezone_light,
-    project_resource_body_markdown_with_timezone, pull_request_body_markdown_with_timezone,
+    project_resource_body_markdown_with_timezone,
+    project_resource_body_markdown_with_timezone_light, pull_request_body_markdown_with_timezone,
     pull_request_body_markdown_with_timezone_light, repository_body_markdown_with_timezone,
 };
 
@@ -158,6 +159,9 @@ enum Commands {
         /// Profile name containing projects to fetch resources from (default: "default")
         #[arg(short, long, default_value = "default")]
         profile: String,
+        /// Output format for project resources - light provides minimal information, rich provides comprehensive details (default: rich)
+        #[arg(long, default_value = "rich")]
+        output: OutputOptionCli,
     },
     /// Fetch detailed issue information including comments, metadata, labels, and timeline events by URLs
     GetIssues {
@@ -332,11 +336,13 @@ async fn main() -> Result<()> {
         Commands::GetProjectResources {
             project_url,
             profile,
+            output,
         } => {
             handle_get_project_resources_command(
                 &project_url,
                 &profile,
                 &cli.format,
+                &output.into(),
                 &github_token,
                 &timezone,
                 &mut profile_service,
@@ -530,6 +536,7 @@ async fn handle_get_project_resources_command(
     project_url: &Option<String>,
     profile: &str,
     format: &OutputFormat,
+    output_option: &OutputOption,
     github_token: &Option<String>,
     timezone: &Option<TimezoneOffset>,
     profile_service: &mut ProfileService,
@@ -570,8 +577,16 @@ async fn handle_get_project_resources_command(
                 println!("No project resources found.");
             } else {
                 for resource in project_resources {
-                    let formatted =
-                        project_resource_body_markdown_with_timezone(&resource, timezone.as_ref());
+                    let formatted = match output_option {
+                        OutputOption::Light => project_resource_body_markdown_with_timezone_light(
+                            &resource,
+                            timezone.as_ref(),
+                        ),
+                        OutputOption::Rich => project_resource_body_markdown_with_timezone(
+                            &resource,
+                            timezone.as_ref(),
+                        ),
+                    };
                     println!("{}", formatted.0);
                     println!("---");
                 }

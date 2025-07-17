@@ -194,7 +194,7 @@ pub fn project_body_markdown_with_timezone(
         for resource in &project.resources {
             content.push_str(&format!(
                 "- **Resource**: {} - Column: {:?}\n",
-                resource.resource_id, resource.column_name
+                resource.project_item_id, resource.column_name
             ));
             content.push_str(&format!("  - State: {}\n", resource.state));
             content.push_str(&format!(
@@ -243,7 +243,7 @@ pub fn project_resources_list_markdown(
     // TODO: Update when resource_id type is changed from String and fields are updated
     let display_resources = project.resources.iter().take(limit);
     for resource in display_resources {
-        content.push_str(&format!("### Resource - {}\n\n", resource.resource_id));
+        content.push_str(&format!("### Resource - {}\n\n", resource.project_item_id));
         content.push_str(&format!("- **Column:** {:?}\n", resource.column_name));
         content.push_str(&format!("- **State:** {}\n", resource.state));
         content.push_str(&format!(

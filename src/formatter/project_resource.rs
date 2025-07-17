@@ -27,19 +27,12 @@ pub fn project_resource_body_markdown_with_timezone(
             .as_deref()
             .unwrap_or("No Status")
     ));
-
-    //NO labels for now
-    //// Labels
-    //if !project_resource.labels.is_empty() {
-    //    content.push_str("## labels\n");
-    //    for label in &project_resource.labels {
-    //        content.push_str(&format!("- {}\n", label));
-    //    }
-    //    content.push('\n');
-    //}
+    content.push_str(&format!(
+        "Project Item ID: {}\n",
+        project_resource.project_item_id
+    ));
 
     content.push('\n');
-
     content.push_str("## Due date\n");
     // Display start date
     match project_resource.start_date {
@@ -61,6 +54,49 @@ pub fn project_resource_body_markdown_with_timezone(
 
     content.push('\n');
 
+    // Custom fields
+    if !project_resource.custom_field_values.is_empty() {
+        content.push_str("## Custom Fields\n");
+        for custom_field in &project_resource.custom_field_values {
+            content.push_str(&format!("- Field ID: {}\n", custom_field.field_id));
+            match &custom_field.value {
+                crate::types::project::ProjectFieldValue::Text(text) => {
+                    content.push_str(&format!(
+                        "- {}: {} (type: Text)\n",
+                        custom_field.field_name, text
+                    ));
+                }
+                crate::types::project::ProjectFieldValue::Number(num) => {
+                    content.push_str(&format!(
+                        "- {}: {} (type: Number)\n",
+                        custom_field.field_name, num
+                    ));
+                }
+                crate::types::project::ProjectFieldValue::Date(date) => {
+                    content.push_str(&format!(
+                        "- {}: {} (type: Date)\n",
+                        custom_field.field_name,
+                        format_datetime_with_timezone_offset(*date, timezone)
+                    ));
+                }
+                crate::types::project::ProjectFieldValue::SingleSelect(value) => {
+                    content.push_str(&format!(
+                        "- {}: {} (type: SingleSelect)\n",
+                        custom_field.field_name, value
+                    ));
+                }
+                crate::types::project::ProjectFieldValue::MultiSelect(values) => {
+                    content.push_str(&format!(
+                        "- {}: {} (type: MultiSelect)\n",
+                        custom_field.field_name,
+                        values.join(", ")
+                    ));
+                }
+            }
+            content.push('\n');
+        }
+    }
+
     // Original resource reference
     content.push_str("## Original resource\n");
     match &project_resource.original_resource {
@@ -76,9 +112,11 @@ pub fn project_resource_body_markdown_with_timezone(
             content.push_str("- Type: Draft Issue (project-only)\n");
         }
     }
+    content.push('\n');
+
     // Assignees
     if !project_resource.assignees.is_empty() {
-        content.push_str("## assignees\n");
+        content.push_str("## Assignees\n");
         for assignee in &project_resource.assignees {
             content.push_str(&format!("- {}\n", assignee));
         }
@@ -86,7 +124,7 @@ pub fn project_resource_body_markdown_with_timezone(
     }
 
     // Timestamps
-    content.push_str("## timestamps\n");
+    content.push_str("## Timestamps\n");
     if let Some(created_at) = project_resource.created_at {
         content.push_str(&format!(
             "- Created: {}\n",
@@ -97,6 +135,58 @@ pub fn project_resource_body_markdown_with_timezone(
         content.push_str(&format!(
             "- Updated: {}\n",
             format_datetime_with_timezone_offset(updated_at, timezone)
+        ));
+    }
+
+    MarkdownContent(content)
+}
+
+pub fn project_resource_body_markdown_with_timezone_light(
+    project_resource: &ProjectResource,
+    _timezone: Option<&TimezoneOffset>,
+) -> MarkdownContent {
+    let mut content = String::new();
+
+    // Lightweight header - title and status only
+    let title = project_resource.title.as_deref().unwrap_or("(No title)");
+    content.push_str(&format!("# {} ({})\n", title, project_resource.state));
+    content.push_str(&format!(
+        "**Column:** {}\n",
+        project_resource
+            .column_name
+            .as_deref()
+            .unwrap_or("No Status")
+    ));
+    content.push_str(&format!(
+        "**Project Item ID:** {}\n\n",
+        project_resource.project_item_id
+    ));
+
+    // Original resource reference
+    match &project_resource.original_resource {
+        ProjectOriginalResource::Issue(issue_id) => {
+            content.push_str("**Type:** Issue\n");
+            content.push_str(&format!("**URL:** {}\n\n", issue_id.url()));
+        }
+        ProjectOriginalResource::PullRequest(pr_id) => {
+            content.push_str("**Type:** Pull Request\n");
+            content.push_str(&format!("**URL:** {}\n\n", pr_id.url()));
+        }
+        ProjectOriginalResource::DraftIssue => {
+            content.push_str("**Type:** Draft Issue (project-only)\n\n");
+        }
+    }
+
+    // Assignees
+    if !project_resource.assignees.is_empty() {
+        content.push_str(&format!(
+            "**Assignees:** {}\n",
+            project_resource
+                .assignees
+                .iter()
+                .map(|u| u.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
     }
 
