@@ -7,7 +7,7 @@ use tracing_subscriber::EnvFilter;
 use github_insight::formatter::{
     TimezoneOffset, issue_body_markdown_with_timezone, issue_body_markdown_with_timezone_light,
     project_resource_body_markdown_with_timezone, pull_request_body_markdown_with_timezone,
-    pull_request_body_markdown_with_timezone_light,
+    pull_request_body_markdown_with_timezone_light, repository_body_markdown_with_timezone,
 };
 
 /// Parse timezone if provided, otherwise use local timezone
@@ -373,6 +373,7 @@ async fn main() -> Result<()> {
                 repository_urls,
                 &cli.format,
                 &github_token,
+                &timezone,
                 cli.request_timeout.map(Duration::from_secs),
             )
             .await?;
@@ -665,6 +666,7 @@ async fn handle_get_repositories_command(
     repository_urls: Vec<RepositoryUrl>,
     format: &OutputFormat,
     github_token: &Option<String>,
+    timezone: &Option<TimezoneOffset>,
     request_timeout: Option<Duration>,
 ) -> Result<()> {
     let github_client = GitHubClient::new(github_token.clone(), request_timeout)
@@ -685,62 +687,9 @@ async fn handle_get_repositories_command(
                 println!("No repositories found for the provided URLs.");
             } else {
                 for repo in repositories {
-                    println!("# {}", repo.git_repository_id.repository_name);
-                    println!("**URL**: {}", repo.git_repository_id.url());
-                    println!("**Owner**: {}", repo.git_repository_id.owner);
-                    println!(
-                        "**Description**: {}",
-                        repo.description
-                            .unwrap_or_else(|| "No description".to_string())
-                    );
-                    println!(
-                        "**Language**: {}",
-                        repo.language.unwrap_or_else(|| "Unknown".to_string())
-                    );
-                    println!(
-                        "**Default Branch**: {}",
-                        repo.default_branch
-                            .as_ref()
-                            .map(|b| b.as_str())
-                            .unwrap_or("Unknown")
-                    );
-                    println!("**Created**: {}", repo.created_at);
-                    println!("**Updated**: {}", repo.updated_at);
-
-                    // Show actual milestones
-                    if !repo.milestones.is_empty() {
-                        println!("**Milestones**: {} milestone(s)", repo.milestones.len());
-                        for milestone in &repo.milestones {
-                            println!(
-                                "  - {} (ID: {})",
-                                milestone.milestone_name, milestone.milestone_id
-                            );
-                        }
-                    } else {
-                        println!("**Milestones**: 0 milestone(s)");
-                    }
-
-                    // Show actual labels
-                    if !repo.labels.is_empty() {
-                        println!("**Labels**: {} label(s)", repo.labels.len());
-                        for label in &repo.labels {
-                            println!("  - {}", label.name());
-                        }
-                    } else {
-                        println!("**Labels**: 0 label(s)");
-                    }
-
-                    // Show actual users
-                    if !repo.users.is_empty() {
-                        println!("**Users**: {} user(s)", repo.users.len());
-                        for user in &repo.users {
-                            println!("  - {}", user.as_str());
-                        }
-                    } else {
-                        println!("**Users**: 0 user(s)");
-                    }
-
-                    println!("---");
+                    let markdown_content =
+                        repository_body_markdown_with_timezone(&repo, timezone.as_ref());
+                    println!("{}", markdown_content.0);
                 }
             }
         }

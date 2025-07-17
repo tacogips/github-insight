@@ -79,6 +79,8 @@ pub struct MilestonesConnection {
 pub struct MilestoneNode {
     pub number: u64,
     pub title: String,
+    #[serde(rename = "dueOn")]
+    pub due_on: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
