@@ -171,6 +171,8 @@ pub struct RepositoryMilestone {
     pub milestone_id: u64,
     /// The human-readable milestone name as displayed in GitHub
     pub milestone_name: String,
+
+    pub due_date: Option<DateTime<Utc>>,
 }
 
 /// A strongly-typed repository identifier for GitHub repositories
@@ -341,9 +343,17 @@ impl TryFrom<RepositoryNode> for GithubRepository {
             .milestones
             .nodes
             .into_iter()
-            .map(|milestone| RepositoryMilestone {
-                milestone_id: milestone.number,
-                milestone_name: milestone.title,
+            .map(|milestone| {
+                let due_date = milestone
+                    .due_on
+                    .and_then(|date_str| chrono::DateTime::parse_from_rfc3339(&date_str).ok())
+                    .map(|date| date.with_timezone(&Utc));
+
+                RepositoryMilestone {
+                    milestone_id: milestone.number,
+                    milestone_name: milestone.title,
+                    due_date,
+                }
             })
             .collect();
 

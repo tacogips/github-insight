@@ -49,9 +49,17 @@ pub fn repository_body_markdown_with_timezone(
     if !repository.milestones.is_empty() {
         content.push_str("\n## Milestones\n");
         for milestone in &repository.milestones {
+            let due_date_info = if let Some(due_date) = milestone.due_date {
+                format!(
+                    " (Due date: {})",
+                    format_datetime_with_timezone_offset(due_date, timezone)
+                )
+            } else {
+                String::new()
+            };
             content.push_str(&format!(
-                "- {} (ID: {})\n",
-                milestone.milestone_name, milestone.milestone_id
+                "- {} (ID: {}){}\n",
+                milestone.milestone_name, milestone.milestone_id, due_date_info
             ));
         }
     }

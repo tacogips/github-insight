@@ -25,6 +25,7 @@ pub fn repository_query() -> String {
                     nodes {
                         number
                         title
+                        dueOn
                     }
                 }
                 labels(first: 100) {
