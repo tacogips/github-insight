@@ -60,6 +60,9 @@ impl std::fmt::Display for ProjectNumber {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectNodeId(pub String);
+
 /// Strong-typed project identifier with URL parsing capabilities.
 ///
 /// This struct encapsulates all project identification logic and URL parsing
@@ -152,17 +155,11 @@ impl std::fmt::Display for ProjectId {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Project {
     pub project_id: ProjectId,
+    pub project_node_id: ProjectNodeId,
     pub title: String,
     pub description: Option<String>,
-    pub state: ProjectState,
-    pub visibility: ProjectVisibility,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    pub closed_at: Option<DateTime<Utc>>,
-    pub creator: String,
-    pub url: String,
-    pub resources: Vec<ProjectResource>,
-    pub custom_fields: Vec<ProjectCustomField>,
 }
 
 /// Represents the state of a GitHub project
@@ -188,29 +185,19 @@ impl Project {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         project_id: ProjectId,
+        project_node_id: ProjectNodeId,
         title: String,
         description: Option<String>,
-        state: ProjectState,
-        visibility: ProjectVisibility,
         created_at: DateTime<Utc>,
         updated_at: DateTime<Utc>,
-        closed_at: Option<DateTime<Utc>>,
-        creator: String,
-        resources: Vec<ProjectResource>,
     ) -> Self {
         Self {
-            url: project_id.url(),
             project_id,
+            project_node_id,
             title,
             description,
-            state,
-            visibility,
             created_at,
             updated_at,
-            closed_at,
-            creator,
-            resources,
-            custom_fields: Vec::new(),
         }
     }
 }

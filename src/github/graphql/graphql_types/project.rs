@@ -4,8 +4,8 @@ use crate::types::{User, label::Label};
 use crate::types::{
     issue::IssueId,
     project::{
-        ProjectCustomFieldValue, ProjectFieldId, ProjectFieldName, ProjectFieldValue,
-        ProjectItemId, ProjectOriginalResource, ProjectResource,
+        Project, ProjectCustomFieldValue, ProjectFieldId, ProjectFieldName, ProjectFieldValue,
+        ProjectId, ProjectItemId, ProjectNodeId, ProjectOriginalResource, ProjectResource,
     },
     pull_request::PullRequestId,
     repository::{RepositoryId, RepositoryUrl},
@@ -529,4 +529,23 @@ fn is_end_date_field(field_name: &ProjectFieldName) -> bool {
         || field_name.eq_ignore_ascii_case("enddate")
         || field_name.eq_ignore_ascii_case("due date")
         || field_name.eq_ignore_ascii_case("deadline")
+}
+
+impl ProjectNode {
+    /// Convert ProjectNode to Project with provided context
+    pub fn to_project(&self, project_id: ProjectId) -> Result<Project> {
+        let project_node_id =
+            ProjectNodeId(self.id.clone().unwrap_or_else(|| "unknown".to_string()));
+
+        Ok(Project::new(
+            project_id,
+            project_node_id,
+            self.title
+                .clone()
+                .unwrap_or_else(|| "Untitled Project".to_string()),
+            None, // description not available in GraphQL response
+            self.created_at.unwrap_or_else(Utc::now),
+            self.updated_at.unwrap_or_else(Utc::now),
+        ))
+    }
 }

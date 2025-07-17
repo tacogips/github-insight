@@ -574,6 +574,158 @@ impl GitHubClient {
         Ok(all_resources)
     }
 
+    /// Fetches a single project by its identifier
+    ///
+    /// This method retrieves comprehensive project information including metadata,
+    /// title, description, and creation/update timestamps using GitHub's GraphQL API.
+    ///
+    /// # Arguments
+    ///
+    /// * `project_id` - The project identifier containing owner, project number, and project type
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result` containing a `Project` with complete project information
+    /// including title, description, creation/update timestamps, and basic metadata.
+    ///
+    /// # Errors
+    ///
+    /// This method can return errors in the following cases:
+    /// - GraphQL API request failures (network issues, authentication problems)
+    /// - Project not found or access permission issues
+    /// - Rate limiting by GitHub API
+    /// - JSON parsing errors when converting GraphQL response to domain objects
+    /// - Timeout errors if the request takes longer than configured timeout
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use github_insight::github::client::GitHubClient;
+    /// use github_insight::types::{ProjectId, ProjectNumber, ProjectType, Owner};
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = GitHubClient::new(Some("token".to_string()), None)?;
+    /// let project_id = ProjectId::new(
+    ///     Owner::from("owner".to_string()),
+    ///     ProjectNumber::new(1),
+    ///     ProjectType::User
+    /// );
+    ///
+    /// // Fetch project information
+    /// let project = client.fetch_project(project_id).await?;
+    ///
+    /// println!("Project: {}", project.title);
+    /// println!("Created: {}", project.created_at);
+    /// println!("Updated: {}", project.updated_at);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn fetch_project(
+        &self,
+        project_id: crate::types::ProjectId,
+    ) -> Result<crate::types::Project> {
+        let start_time = std::time::Instant::now();
+        info!("Starting fetch_project for project {}", project_id);
+
+        // Use project type to determine which query to try first
+        let project_node = match project_id.project_type() {
+            crate::types::ProjectType::User => {
+                // Try user project first for user projects
+                match self.try_user_project_query_simple(&project_id).await {
+                    Ok(project_node) => project_node,
+                    Err(_) => {
+                        // Fallback to organization query if user query fails
+                        self.try_organization_project_query_simple(&project_id)
+                            .await?
+                    }
+                }
+            }
+            crate::types::ProjectType::Organization => {
+                // Try organization project first for organization projects
+                match self
+                    .try_organization_project_query_simple(&project_id)
+                    .await
+                {
+                    Ok(project_node) => project_node,
+                    Err(_) => {
+                        // Fallback to user query if organization query fails
+                        self.try_user_project_query_simple(&project_id).await?
+                    }
+                }
+            }
+        };
+
+        // Convert GraphQL response to domain object
+        let project = project_node
+            .to_project(project_id.clone())
+            .context(format!("Failed to convert project: {}", project_id))?;
+
+        info!("Project fetch completed in {:?}", start_time.elapsed());
+
+        Ok(project)
+    }
+
+    /// Try to fetch project using user project query (simple version without pagination)
+    async fn try_user_project_query_simple(
+        &self,
+        project_id: &crate::types::ProjectId,
+    ) -> Result<crate::github::graphql::graphql_types::project::ProjectNode> {
+        let query = user_project_query(project_id.project_number(), None);
+        let variables = ProjectVariable {
+            owner: project_id.owner().clone(),
+        };
+
+        let payload = GraphQLPayload {
+            query: GraphQLQuery(query),
+            variables: Some(variables),
+        };
+
+        let response: GraphQLResponse<ProjectResourcesResponse> =
+            self.execute_graphql("project_fetch", payload).await?;
+
+        if let Some(data) = response.data {
+            if let Some(user) = data.user {
+                if let Some(project) = user.project_v2 {
+                    return Ok(project);
+                }
+            }
+        }
+
+        Err(anyhow::anyhow!("User project not found: {}", project_id))
+    }
+
+    /// Try to fetch project using organization project query (simple version without pagination)
+    async fn try_organization_project_query_simple(
+        &self,
+        project_id: &crate::types::ProjectId,
+    ) -> Result<crate::github::graphql::graphql_types::project::ProjectNode> {
+        let query = single_project_query(project_id.project_number(), None);
+        let variables = ProjectVariable {
+            owner: project_id.owner().clone(),
+        };
+
+        let payload = GraphQLPayload {
+            query: GraphQLQuery(query),
+            variables: Some(variables),
+        };
+
+        let response: GraphQLResponse<ProjectResourcesResponse> =
+            self.execute_graphql("project_fetch", payload).await?;
+
+        if let Some(data) = response.data {
+            if let Some(org) = data.organization {
+                if let Some(project) = org.project_v2 {
+                    return Ok(project);
+                }
+            }
+        }
+
+        Err(anyhow::anyhow!(
+            "Organization project not found: {}",
+            project_id
+        ))
+    }
+
     /// Fetches a single repository by its identifier
     ///
     /// This method retrieves comprehensive repository information including metadata,
