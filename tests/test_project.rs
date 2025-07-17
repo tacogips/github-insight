@@ -72,7 +72,7 @@ async fn test_fetch_project_resources() {
 
         // Verify basic properties
         assert!(
-            !resource.resource_id.is_empty(),
+            !resource.project_item_id.0.is_empty(),
             "Resource ID should not be empty"
         );
         assert!(
@@ -302,7 +302,7 @@ async fn test_multi_resource_fetcher_fetch_project_resources() {
 
         // Verify basic properties
         assert!(
-            !resource.resource_id.is_empty(),
+            !resource.project_item_id.0.is_empty(),
             "Resource ID should not be empty"
         );
         assert!(
@@ -417,7 +417,7 @@ async fn test_multi_resource_fetcher_empty_project() {
     // If resources exist, verify they have valid structure
     for resource in &resources {
         assert!(
-            !resource.resource_id.is_empty(),
+            !resource.project_item_id.0.is_empty(),
             "Resource ID should not be empty"
         );
         assert!(
