@@ -4,16 +4,15 @@ Guidance for Claude Code when working with this codebase.
 
 ## Response Rules
 
-**CRITICAL: FIRST RESPONSE REQUIREMENTS** - These rules MUST be followed in the every response of a conversation:
+**CRITICAL: FIRST RESPONSE REQUIREMENTS** - These rules MUST be followed in the **EVERY** response of a conversation:
 
 1. **MANDATORY OPENING**: Start the very first response in any new conversation with exactly this phrase: "I will continue thinking and providing output in English."
 2. **ACKNOWLEDGE CLAUDE.MD**: Explicitly state "I acknowledge reading CLAUDE.md and will use CARGO_TERM_QUIET=true for cargo commands."
-3. **INSTRUCTION PARSING**: For English instructions, begin with "Your instruction is {corrected English}"
+3. **INSTRUCTION PARSING**: Begin with "Your instruction is {corrected English}" regardless of what language the instruction is given in
 
 **Additional Response Rules**:
 
 - Always respond in English regardless of user's language
-- Declare cargo commands use CARGO_TERM_QUIET=true
 - Follow all subsequent rules in this document
 
 ### Task Management
