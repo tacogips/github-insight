@@ -162,9 +162,9 @@ impl From<&str> for RepositoryUrl {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct MilestoneId(pub u64);
+pub struct MilestoneNumber(pub u64);
 
-impl std::fmt::Display for MilestoneId {
+impl std::fmt::Display for MilestoneNumber {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -185,8 +185,7 @@ impl std::fmt::Display for MilestoneName {
 /// storing both the numeric milestone ID and the human-readable milestone name.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RepositoryMilestone {
-    /// The numeric milestone identifier as assigned by GitHub
-    pub milestone_id: MilestoneId,
+    pub milestone_number: MilestoneNumber,
     /// The human-readable milestone name as displayed in GitHub
     pub milestone_name: MilestoneName,
 
@@ -426,7 +425,7 @@ impl TryFrom<RepositoryNode> for GithubRepository {
                     .map(|date| date.with_timezone(&Utc));
 
                 RepositoryMilestone {
-                    milestone_id: MilestoneId(milestone.number),
+                    milestone_number: MilestoneNumber(milestone.number as u64),
                     milestone_name: MilestoneName(milestone.title),
                     due_date,
                 }
