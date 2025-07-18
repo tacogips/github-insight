@@ -167,7 +167,7 @@ GITHUB_TOKEN=ghp_token cargo run --bin github-insight-cli -- [OPTIONS] <COMMAND>
 - `get-project-resources`: Fetch detailed project resources including items, metadata, timestamps, and assignees with comprehensive pagination support. Supports light/rich output format (default: rich). Use `get-issues` and `get-pull-requests` commands to get more detailed information
 - `get-issues`: Fetch detailed issue information including comments, metadata, labels, and timeline events by URLs (formatted as markdown with comprehensive details)
 - `get-pull-requests`: Fetch detailed pull request information including comments, metadata, reviews, and timeline events by URLs (formatted as markdown with comprehensive details)
-- `get-repositories`: Fetch detailed repository information including metadata, statistics, releases (with configurable limit), milestones (with configurable limit), and configuration by URLs (formatted as markdown with comprehensive details)
+- `get-repositories`: Fetch detailed repository information including metadata, statistics, releases (with configurable limit using --showing-release-limit, default: 10), milestones (with configurable limit using --showing-milestone-limit, default: 10), and configuration by URLs (formatted as markdown with comprehensive details)
 - `get-projects`: Fetch detailed project information including metadata, description, and timestamps by URLs (formatted as markdown with comprehensive details)
 
 #### General
