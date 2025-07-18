@@ -23,7 +23,6 @@ use crate::formatter::{
     repository::repository_body_markdown_with_timezone,
 };
 use crate::github::GitHubClient;
-use crate::services::{ProfileService, default_profile_config_dir};
 use crate::types::{
     IssueUrl, OutputOption, ProfileName, ProjectUrl, PullRequestUrl, SearchCursorByRepository,
     SearchQuery,
@@ -70,105 +69,6 @@ impl GitInsightTools {
             github_token,
             profile_name,
             timezone: default_timezone,
-        }
-    }
-
-    /// Validates profile and extracts project IDs for operations
-    ///
-    /// Returns Ok(project_ids) if profile exists and has projects,
-    /// otherwise returns appropriate error result
-    pub fn load_profile_projects(&self) -> Result<Vec<crate::types::ProjectId>, CallToolResult> {
-        // Get profile name - use default if none specified
-        let profile_name = self.profile_name.clone().unwrap_or_default();
-
-        // Load profile from file
-        let config_dir = default_profile_config_dir().map_err(|e| CallToolResult {
-            content: vec![Content::text(format!(
-                "Failed to get config directory: {}",
-                e
-            ))],
-            is_error: Some(true),
-        })?;
-
-        let profile_service = ProfileService::new(config_dir).map_err(|e| CallToolResult {
-            content: vec![Content::text(format!(
-                "Failed to initialize profile service: {}",
-                e
-            ))],
-            is_error: Some(true),
-        })?;
-
-        let project_ids =
-            profile_service
-                .list_projects(&profile_name)
-                .map_err(|e| CallToolResult {
-                    content: vec![Content::text(format!(
-                        "Failed to load projects from profile '{}': {}",
-                        profile_name, e
-                    ))],
-                    is_error: Some(true),
-                })?;
-
-        if project_ids.is_empty() {
-            Err(CallToolResult {
-                content: vec![Content::text(format!(
-                    "No projects found in profile '{}'.",
-                    profile_name
-                ))],
-                is_error: Some(false),
-            })
-        } else {
-            Ok(project_ids)
-        }
-    }
-
-    /// Validates profile and extracts repository IDs for operations
-    ///
-    /// Returns Ok(repository_ids) if profile exists and has repositories,
-    /// otherwise returns appropriate error result
-    pub fn load_profile_repositories(
-        &self,
-    ) -> Result<Vec<crate::types::RepositoryId>, CallToolResult> {
-        // Get profile name - use default if none specified
-        let profile_name = self.profile_name.clone().unwrap_or_default();
-
-        // Load profile from file
-        let config_dir = default_profile_config_dir().map_err(|e| CallToolResult {
-            content: vec![Content::text(format!(
-                "Failed to get config directory: {}",
-                e
-            ))],
-            is_error: Some(true),
-        })?;
-
-        let profile_service = ProfileService::new(config_dir).map_err(|e| CallToolResult {
-            content: vec![Content::text(format!(
-                "Failed to initialize profile service: {}",
-                e
-            ))],
-            is_error: Some(true),
-        })?;
-
-        let repo_ids = profile_service
-            .list_repositories(&profile_name)
-            .map_err(|e| CallToolResult {
-                content: vec![Content::text(format!(
-                    "Failed to load repositories from profile '{}': {}",
-                    profile_name, e
-                ))],
-                is_error: Some(true),
-            })?;
-
-        if repo_ids.is_empty() {
-            Err(CallToolResult {
-                content: vec![Content::text(format!(
-                    "No repositories found in profile '{}'.",
-                    profile_name
-                ))],
-                is_error: Some(false),
-            })
-        } else {
-            Ok(repo_ids)
         }
     }
 
@@ -253,13 +153,23 @@ impl GitInsightTools {
             }
         } else {
             // Fetch resources for all projects in the profile
-            let project_ids = match self.load_profile_projects() {
-                Ok(ids) => ids,
-                Err(error_result) => return Ok(error_result),
-            };
+            let profile_name = self.profile_name.clone().unwrap_or_default();
+            let projects = functions::profile::list_projects(profile_name.to_string())
+                .await
+                .map_err(|e| McpError::internal_error(e, None))?;
+
+            if projects.is_empty() {
+                return Ok(CallToolResult {
+                    content: vec![Content::text(format!(
+                        "No projects found in profile '{}'.",
+                        profile_name
+                    ))],
+                    is_error: Some(false),
+                });
+            }
 
             let project_resources =
-                functions::project::get_multiple_project_resources(&github_client, project_ids)
+                functions::project::get_multiple_project_resources(&github_client, projects)
                     .await
                     .map_err(|e| McpError::internal_error(e.to_string(), None))?;
 
@@ -390,7 +300,7 @@ impl GitInsightTools {
         #[schemars(
             description = "Optional specific repository URLs to fetch. If not provided, fetches all repositories from the profile. Examples: ['https://github.com/rust-lang/rust', 'https://github.com/tokio-rs/tokio']"
         )]
-        specific_repository_urls: Option<Vec<String>>,
+        repository_urls: Option<Vec<String>>,
         #[tool(param)]
         #[schemars(
             description = "Optional limit for number of releases to show per repository (default: 10). Examples: 5, 20"
@@ -408,20 +318,30 @@ impl GitInsightTools {
             McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
         })?;
 
-        let repository_urls = if let Some(urls) = specific_repository_urls {
+        let repository_urls = if let Some(urls) = repository_urls {
             // Use provided URLs
             urls.into_iter()
                 .map(crate::types::RepositoryUrl)
                 .collect::<Vec<_>>()
         } else {
             // Load repositories from profile
-            let repo_ids = match self.load_profile_repositories() {
-                Ok(ids) => ids,
-                Err(error_result) => return Ok(error_result),
-            };
+            let profile_name = self.profile_name.clone().unwrap_or_default();
+            let repositories = functions::profile::list_repositories(profile_name.to_string())
+                .await
+                .map_err(|e| McpError::internal_error(e, None))?;
+
+            if repositories.is_empty() {
+                return Ok(CallToolResult {
+                    content: vec![Content::text(format!(
+                        "No repositories found in profile '{}'.",
+                        profile_name
+                    ))],
+                    is_error: Some(false),
+                });
+            }
 
             // Convert RepositoryIds to RepositoryUrls
-            repo_ids
+            repositories
                 .into_iter()
                 .map(|repo_id| {
                     crate::types::RepositoryUrl(format!(
@@ -510,7 +430,7 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Search for issues, PRs, and projects across registered repositories or a specific repository. The 'github_search_query' parameter is optional and defaults to open issues and PRs. When 'specific_repository_url' is provided, searches in that repository even if not registered. Comprehensive search across multiple resource types. Use get_issues_details and get_pull_request_details functions to get more detailed information. Note: Pagination with cursors is currently disabled - results are returned in a single response."
+        description = "Search for issues, PRs, and projects across multiple repositories. The 'github_search_query' parameter is optional and defaults to open issues and PRs. When 'repository_urls' is provided, searches in those repositories. Comprehensive search across multiple resource types. Use get_issues_details and get_pull_request_details functions to get more detailed information. Note: Pagination with cursors is currently disabled - results are returned in a single response."
     )]
     async fn search_in_repositories(
         &self,
@@ -522,9 +442,9 @@ impl GitInsightTools {
         github_search_query: Option<String>,
         #[tool(param)]
         #[schemars(
-            description = "Optional specific repository URL to search in (e.g., 'https://github.com/owner/repo'). If not provided, searches across all repositories registered in the profile. When specified, allows searching in repositories that are not registered in the profile."
+            description = "Repository URLs to search in (e.g., ['https://github.com/owner/repo1', 'https://github.com/owner/repo2']). To search repositories from the current profile, use list_repositories_in_current_profile to get repository URLs and pass them to this parameter."
         )]
-        specific_repository_url: Option<String>,
+        repository_urls: Vec<String>,
         #[tool(param)]
         #[schemars(
             description = "Result limit per repository (default 30, max 100). Examples: 10, 50"
@@ -560,21 +480,26 @@ impl GitInsightTools {
         let query_string = github_search_query.unwrap_or_else(|| DEFAULT_SEARCH_QUERY.to_string());
         let query = SearchQuery::new(query_string);
 
-        let repository_urls = if let Some(repo_url_str) = specific_repository_url {
-            // Search in specific repository
+        // Check if repository_urls is empty and return error
+        if repository_urls.is_empty() {
+            return Err(McpError::invalid_request(
+                "repository_urls cannot be empty. Please provide at least one repository URL."
+                    .to_string(),
+                None,
+            ));
+        }
+
+        // Search in specific repositories
+        let mut repo_ids = Vec::new();
+        for repo_url_str in repository_urls {
             let repo_id =
                 crate::types::RepositoryId::parse_url(&crate::types::RepositoryUrl(repo_url_str))
                     .map_err(|e| {
                     McpError::internal_error(format!("Invalid repository ID: {}", e), None)
                 })?;
-            vec![repo_id]
-        } else {
-            // Search across all repositories in the profile
-            match self.load_profile_repositories() {
-                Ok(repo_ids) => repo_ids,
-                Err(error_result) => return Ok(error_result),
-            }
-        };
+            repo_ids.push(repo_id);
+        }
+        let repository_urls = repo_ids;
 
         // Search across repositories
         let search_results = functions::search::search_resources(
@@ -635,6 +560,46 @@ impl GitInsightTools {
 
         Ok(CallToolResult {
             content: content_vec,
+            is_error: Some(false),
+        })
+    }
+
+    #[tool(
+        description = "List all repositories registered in the current profile. Returns repository IDs and URLs for repositories managed by the profile."
+    )]
+    async fn list_repositories_in_current_profile(&self) -> Result<CallToolResult, McpError> {
+        let profile_name = self.profile_name.clone().unwrap_or_default().to_string();
+
+        let result = functions::profile::list_repositories(profile_name)
+            .await
+            .map_err(|e| McpError::internal_error(e, None))?;
+
+        let content = Content::text(serde_json::to_string_pretty(&result).map_err(|e| {
+            McpError::internal_error(format!("Failed to serialize result: {}", e), None)
+        })?);
+
+        Ok(CallToolResult {
+            content: vec![content],
+            is_error: Some(false),
+        })
+    }
+
+    #[tool(
+        description = "List all projects registered in the current profile. Returns project IDs and URLs for projects managed by the profile."
+    )]
+    async fn list_projects_in_current_profile(&self) -> Result<CallToolResult, McpError> {
+        let profile_name = self.profile_name.clone().unwrap_or_default().to_string();
+
+        let result = functions::profile::list_projects(profile_name)
+            .await
+            .map_err(|e| McpError::internal_error(e, None))?;
+
+        let content = Content::text(serde_json::to_string_pretty(&result).map_err(|e| {
+            McpError::internal_error(format!("Failed to serialize result: {}", e), None)
+        })?);
+
+        Ok(CallToolResult {
+            content: vec![content],
             is_error: Some(false),
         })
     }
@@ -720,56 +685,76 @@ Examples:
 {{"name": "get_repository_details", "arguments": {{"repository_urls": ["https://github.com/rust-lang/rust"], "showing_release_limit": 5}}}}
 ```
 
-### 6. search_across_repositories
-Search across all registered repositories for issues, PRs, and projects. Comprehensive search across multiple resource types with support for specific repository targeting and advanced pagination.
+### 6. search_in_repositories
+Search across multiple repositories for issues, PRs, and projects. Comprehensive search across multiple resource types with support for specific repository targeting and advanced pagination.
 
 Examples:
 ```json
-// Basic search across all repositories
-{{"name": "search_across_repositories", "arguments": {{"query": "memory leak"}}}}
+// Search in specific repositories
+{{"name": "search_in_repositories", "arguments": {{"github_search_query": "memory leak", "repository_urls": ["https://github.com/rust-lang/rust", "https://github.com/tokio-rs/tokio"]}}}}
 
-// Search in specific repository
-{{"name": "search_across_repositories", "arguments": {{
-    "query": "authentication",
-    "repository_url": "https://github.com/tokio-rs/tokio",
-    "limit": 50
-}}}}
+// Search with default query (open issues and PRs)
+{{"name": "search_in_repositories", "arguments": {{"repository_urls": ["https://github.com/tokio-rs/tokio"]}}}}
 
 // Search with specific output format
-{{"name": "search_across_repositories", "arguments": {{
-    "query": "async await",
+{{"name": "search_in_repositories", "arguments": {{
+    "github_search_query": "async await",
+    "repository_urls": ["https://github.com/tokio-rs/tokio"],
     "output_option": "light",
     "limit": 20
 }}}}
 
 // Search with pagination cursors
-{{"name": "search_across_repositories", "arguments": {{
-    "query": "performance",
+{{"name": "search_in_repositories", "arguments": {{
+    "github_search_query": "performance",
+    "repository_urls": ["https://github.com/rust-lang/rust"],
     "cursors": [{{"repository_id": {{"owner": "rust-lang", "repository_name": "rust"}}, "cursor": "Y3Vyc29yOnYyOpK5"}}]
 }}}}
 ```
 
+### 7. list_repositories_in_current_profile
+List all repositories registered in the current profile. Returns repository IDs and URLs for repositories managed by the profile.
+
+Examples:
+```json
+// List all repositories in current profile
+{{"name": "list_repositories_in_current_profile", "arguments": {{}}}}
+```
+
+### 8. list_projects_in_current_profile
+List all projects registered in the current profile. Returns project IDs and URLs for projects managed by the profile.
+
+Examples:
+```json
+// List all projects in current profile
+{{"name": "list_projects_in_current_profile", "arguments": {{}}}}
+```
+
 ## Common Workflows
 
-1. **Repository Search**:
-   - Use search_across_repositories to find issues/PRs by keywords across all or specific repositories
+1. **Profile Management**:
+   - Use list_repositories_in_current_profile to get all repositories registered in the current profile
+   - Use list_projects_in_current_profile to get all projects registered in the current profile
+
+2. **Repository Search**:
+   - Use search_in_repositories to find issues/PRs by keywords across specific repositories
    - Support for pagination using cursors for large result sets
    - Choose between light and rich output formats
 
-2. **Specific Resource Access**:
+3. **Specific Resource Access**:
    - Use get_issues_details to get detailed issue information with comments
    - Use get_pull_request_details to get detailed pull request information with comments
 
-3. **Project Management**:
+4. **Project Management**:
    - Use get_project_resources to access project boards and associated resources
    - Fetch from all projects in profile or specific project URLs
    - Choose between light and rich output formats (default: rich)
 
-4. **Output Formatting**:
+5. **Output Formatting**:
    - Rich format provides comprehensive details including full comments, timestamps, custom fields
    - Light format provides minimal information for quick overview
    - get_project_resources defaults to rich format for detailed project information
-   - search_across_repositories defaults to light format for quick search results
+   - search_in_repositories defaults to light format for quick search results
 "#,
             auth_status
         );
