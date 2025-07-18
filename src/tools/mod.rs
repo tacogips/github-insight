@@ -98,16 +98,16 @@ impl GitInsightTools {
 #[tool(tool_box)]
 impl GitInsightTools {
     #[tool(
-        description = "Get all project resources. Returns all project resources as markdown array including title, description, resource counts, and timestamps. This tool fetches all resources from the specified project(s) without pagination. Each project resource includes field IDs that can be used for project field updates. Use get_issues_details and get_pull_request_details functions to get more detailed information. Examples: `{}` (all projects), `{\"project_url\": \"https://github.com/users/username/projects/1\"}` (specific project)"
+        description = "Get all project resources. Returns all project resources as markdown array including title, description, resource counts, and timestamps. This tool fetches all resources from the specified project(s) without pagination. Each project resource includes field IDs that can be used for project field updates. Use get_issues_details and get_pull_request_details functions to get more detailed information. To get projects from the current profile, use list_project_urls_in_current_profile to get project URLs and pass them to this parameter."
     )]
     async fn get_project_resources(
         &self,
 
         #[tool(param)]
         #[schemars(
-            description = "Optional project URL to fetch resources from. If not provided, fetches all resources from all projects in the profile. Examples: 'https://github.com/users/username/projects/1', 'https://github.com/orgs/orgname/projects/5'"
+            description = "Project URLs to fetch resources from. Examples: ['https://github.com/users/username/projects/1', 'https://github.com/orgs/orgname/projects/5']. To get projects from the current profile, use list_project_urls_in_current_profile to get project URLs and pass them to this parameter."
         )]
-        project_url: Option<String>,
+        project_urls: Vec<String>,
         #[tool(param)]
         #[schemars(
             description = "Optional output format for project resources (light/rich, default: rich). Light format provides minimal information, rich format provides comprehensive details."
@@ -118,6 +118,14 @@ impl GitInsightTools {
         let github_client = GitHubClient::new(self.github_token.clone(), None).map_err(|e| {
             McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
         })?;
+
+        // Check if project_urls is empty and return error
+        if project_urls.is_empty() {
+            return Err(McpError::invalid_request(
+                "project_urls cannot be empty. Please provide at least one project URL. To get projects from the current profile, use list_project_urls_in_current_profile to get project URLs and pass them to this parameter.".to_string(),
+                None,
+            ));
+        }
 
         // Parse output format option, defaulting to rich
         let format = if let Some(option_str) = output_option {
@@ -130,62 +138,41 @@ impl GitInsightTools {
 
         let mut content_vec = Vec::new();
 
-        if let Some(project_url_str) = project_url {
-            // Fetch resources for specific project
+        // Convert strings to ProjectId
+        let mut project_ids = Vec::new();
+        for project_url_str in project_urls {
             let project_url = ProjectUrl(project_url_str);
-            let project_resources =
-                functions::project::get_project_resources(&github_client, project_url)
-                    .await
-                    .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+            let (owner_str, number, project_type) =
+                crate::types::ProjectId::parse_url(&project_url).map_err(|e| {
+                    McpError::invalid_params(format!("Failed to parse project URL: {}", e), None)
+                })?;
 
-            for project_resource in project_resources {
-                let formatted = match format {
-                    OutputOption::Light => project_resource_body_markdown_with_timezone_light(
-                        &project_resource,
-                        self.timezone.as_ref(),
-                    ),
-                    OutputOption::Rich => project_resource_body_markdown_with_timezone(
-                        &project_resource,
-                        self.timezone.as_ref(),
-                    ),
-                };
-                content_vec.push(Content::text(formatted.0));
-            }
-        } else {
-            // Fetch resources for all projects in the profile
-            let profile_name = self.profile_name.clone().unwrap_or_default();
-            let projects = functions::profile::list_projects(profile_name.to_string())
+            let project_id = crate::types::ProjectId::new(
+                crate::types::repository::Owner::new(owner_str),
+                crate::types::ProjectNumber::new(number),
+                project_type,
+            );
+            project_ids.push(project_id);
+        }
+
+        // Fetch resources for specified projects
+        let project_resources =
+            functions::project::get_multiple_project_resources(&github_client, project_ids)
                 .await
-                .map_err(|e| McpError::internal_error(e, None))?;
+                .map_err(|e| McpError::internal_error(e.to_string(), None))?;
 
-            if projects.is_empty() {
-                return Ok(CallToolResult {
-                    content: vec![Content::text(format!(
-                        "No projects found in profile '{}'.",
-                        profile_name
-                    ))],
-                    is_error: Some(false),
-                });
-            }
-
-            let project_resources =
-                functions::project::get_multiple_project_resources(&github_client, projects)
-                    .await
-                    .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-
-            for project_resource in project_resources {
-                let formatted = match format {
-                    OutputOption::Light => project_resource_body_markdown_with_timezone_light(
-                        &project_resource,
-                        self.timezone.as_ref(),
-                    ),
-                    OutputOption::Rich => project_resource_body_markdown_with_timezone(
-                        &project_resource,
-                        self.timezone.as_ref(),
-                    ),
-                };
-                content_vec.push(Content::text(formatted.0));
-            }
+        for project_resource in project_resources {
+            let formatted = match format {
+                OutputOption::Light => project_resource_body_markdown_with_timezone_light(
+                    &project_resource,
+                    self.timezone.as_ref(),
+                ),
+                OutputOption::Rich => project_resource_body_markdown_with_timezone(
+                    &project_resource,
+                    self.timezone.as_ref(),
+                ),
+            };
+            content_vec.push(Content::text(formatted.0));
         }
 
         if content_vec.is_empty() {
@@ -205,7 +192,7 @@ impl GitInsightTools {
         &self,
         #[tool(param)]
         #[schemars(
-            description = "Issue URLs to fetch. Examples: ['https://github.com/rust-lang/rust/issues/12345', 'https://github.com/tokio-rs/tokio/issues/5678']"
+            description = "Issue URLs to fetch. Examples: ['https://github.com/rust-lang/rust/issues/12345', 'https://github.com/tokio-rs/tokio/issues/5678']. To get issue URLs from repositories in the current profile, use list_repository_urls_in_current_profile to get repository URLs and pass them to this parameter."
         )]
         issue_urls: Vec<String>,
     ) -> Result<CallToolResult, McpError> {
@@ -250,7 +237,7 @@ impl GitInsightTools {
         &self,
         #[tool(param)]
         #[schemars(
-            description = "Pull request URLs to fetch. Examples: ['https://github.com/rust-lang/rust/pull/98765', 'https://github.com/tokio-rs/tokio/pull/4321']"
+            description = "Pull request URLs to fetch. Examples: ['https://github.com/rust-lang/rust/pull/98765', 'https://github.com/tokio-rs/tokio/pull/4321']. To get pull request URLs from repositories in the current profile, use list_repository_urls_in_current_profile to get repository URLs and pass them to this parameter."
         )]
         pull_request_urls: Vec<String>,
     ) -> Result<CallToolResult, McpError> {
@@ -298,9 +285,9 @@ impl GitInsightTools {
         &self,
         #[tool(param)]
         #[schemars(
-            description = "Optional specific repository URLs to fetch. If not provided, fetches all repositories from the profile. Examples: ['https://github.com/rust-lang/rust', 'https://github.com/tokio-rs/tokio']"
+            description = "Repository URLs to fetch. Examples: ['https://github.com/rust-lang/rust', 'https://github.com/tokio-rs/tokio']. To get repository URLs from the current profile, use list_repository_urls_in_current_profile to get repository URLs and pass them to this parameter."
         )]
-        repository_urls: Option<Vec<String>>,
+        repository_urls: Vec<String>,
         #[tool(param)]
         #[schemars(
             description = "Optional limit for number of releases to show per repository (default: 10). Examples: 5, 20"
@@ -318,39 +305,19 @@ impl GitInsightTools {
             McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
         })?;
 
-        let repository_urls = if let Some(urls) = repository_urls {
-            // Use provided URLs
-            urls.into_iter()
-                .map(crate::types::RepositoryUrl)
-                .collect::<Vec<_>>()
-        } else {
-            // Load repositories from profile
-            let profile_name = self.profile_name.clone().unwrap_or_default();
-            let repositories = functions::profile::list_repositories(profile_name.to_string())
-                .await
-                .map_err(|e| McpError::internal_error(e, None))?;
+        // Check if repository_urls is empty and return error
+        if repository_urls.is_empty() {
+            return Err(McpError::invalid_request(
+                "repository_urls cannot be empty. Please provide at least one repository URL."
+                    .to_string(),
+                None,
+            ));
+        }
 
-            if repositories.is_empty() {
-                return Ok(CallToolResult {
-                    content: vec![Content::text(format!(
-                        "No repositories found in profile '{}'.",
-                        profile_name
-                    ))],
-                    is_error: Some(false),
-                });
-            }
-
-            // Convert RepositoryIds to RepositoryUrls
-            repositories
-                .into_iter()
-                .map(|repo_id| {
-                    crate::types::RepositoryUrl(format!(
-                        "https://github.com/{}/{}",
-                        repo_id.owner, repo_id.repository_name
-                    ))
-                })
-                .collect()
-        };
+        let repository_urls = repository_urls
+            .into_iter()
+            .map(crate::types::RepositoryUrl)
+            .collect::<Vec<_>>();
 
         // Fetch repositories using the multiple repositories function
         let repositories =
@@ -390,7 +357,7 @@ impl GitInsightTools {
         &self,
         #[tool(param)]
         #[schemars(
-            description = "Project URLs to fetch. Examples: ['https://github.com/users/username/projects/1', 'https://github.com/orgs/orgname/projects/5']"
+            description = "Project URLs to fetch. Examples: ['https://github.com/users/username/projects/1', 'https://github.com/orgs/orgname/projects/5']. To get project URLs from the current profile, use list_project_urls_in_current_profile to get project URLs and pass them to this parameter."
         )]
         project_urls: Vec<String>,
     ) -> Result<CallToolResult, McpError> {
@@ -442,7 +409,7 @@ impl GitInsightTools {
         github_search_query: Option<String>,
         #[tool(param)]
         #[schemars(
-            description = "Repository URLs to search in (e.g., ['https://github.com/owner/repo1', 'https://github.com/owner/repo2']). To search repositories from the current profile, use list_repositories_in_current_profile to get repository URLs and pass them to this parameter."
+            description = "Repository URLs to search in (e.g., ['https://github.com/owner/repo1', 'https://github.com/owner/repo2']). To search repositories from the current profile, use list_repository_urls_in_current_profile to get repository URLs and pass them to this parameter."
         )]
         repository_urls: Vec<String>,
         #[tool(param)]
@@ -565,9 +532,9 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "List all repositories registered in the current profile. Returns repository IDs and URLs for repositories managed by the profile."
+        description = "List all repository URLs registered in the current profile. Returns an array of repository URLs for repositories managed by the profile. Example return value: [\"https://github.com/rust-lang/rust\", \"https://github.com/tokio-rs/tokio\"]"
     )]
-    async fn list_repositories_in_current_profile(&self) -> Result<CallToolResult, McpError> {
+    async fn list_repository_urls_in_current_profile(&self) -> Result<CallToolResult, McpError> {
         let profile_name = self.profile_name.clone().unwrap_or_default().to_string();
 
         let result = functions::profile::list_repositories(profile_name)
@@ -585,9 +552,9 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "List all projects registered in the current profile. Returns project IDs and URLs for projects managed by the profile."
+        description = "List all project URLs registered in the current profile. Returns an array of project URLs for projects managed by the profile. Example return value: [\"https://github.com/users/username/projects/1\", \"https://github.com/orgs/orgname/projects/5\"]"
     )]
-    async fn list_projects_in_current_profile(&self) -> Result<CallToolResult, McpError> {
+    async fn list_project_urls_in_current_profile(&self) -> Result<CallToolResult, McpError> {
         let profile_name = self.profile_name.clone().unwrap_or_default().to_string();
 
         let result = functions::profile::list_projects(profile_name)
@@ -672,9 +639,6 @@ Get repository details by URLs. Returns detailed repository information formatte
 
 Examples:
 ```json
-// Get all repository details from profile
-{{"name": "get_repository_details", "arguments": {{}}}}
-
 // Get single repository details
 {{"name": "get_repository_details", "arguments": {{"repository_urls": ["https://github.com/rust-lang/rust"]}}}}
 
@@ -712,29 +676,33 @@ Examples:
 }}}}
 ```
 
-### 7. list_repositories_in_current_profile
-List all repositories registered in the current profile. Returns repository IDs and URLs for repositories managed by the profile.
+### 7. list_repository_urls_in_current_profile
+List all repository URLs registered in the current profile. Returns an array of repository URLs for repositories managed by the profile.
+
+Example return value: ["https://github.com/rust-lang/rust", "https://github.com/tokio-rs/tokio"]
 
 Examples:
 ```json
-// List all repositories in current profile
-{{"name": "list_repositories_in_current_profile", "arguments": {{}}}}
+// List all repository URLs in current profile
+{{"name": "list_repository_urls_in_current_profile", "arguments": {{}}}}
 ```
 
-### 8. list_projects_in_current_profile
-List all projects registered in the current profile. Returns project IDs and URLs for projects managed by the profile.
+### 8. list_project_urls_in_current_profile
+List all project URLs registered in the current profile. Returns an array of project URLs for projects managed by the profile.
+
+Example return value: ["https://github.com/users/username/projects/1", "https://github.com/orgs/orgname/projects/5"]
 
 Examples:
 ```json
-// List all projects in current profile
-{{"name": "list_projects_in_current_profile", "arguments": {{}}}}
+// List all project URLs in current profile
+{{"name": "list_project_urls_in_current_profile", "arguments": {{}}}}
 ```
 
 ## Common Workflows
 
 1. **Profile Management**:
-   - Use list_repositories_in_current_profile to get all repositories registered in the current profile
-   - Use list_projects_in_current_profile to get all projects registered in the current profile
+   - Use list_repository_urls_in_current_profile to get all repository URLs registered in the current profile
+   - Use list_project_urls_in_current_profile to get all project URLs registered in the current profile
 
 2. **Repository Search**:
    - Use search_in_repositories to find issues/PRs by keywords across specific repositories

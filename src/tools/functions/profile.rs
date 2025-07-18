@@ -6,7 +6,7 @@
 
 use crate::services::{ProfileService, default_profile_config_dir};
 use crate::types::profile::ProfileInfo;
-use crate::types::{ProfileName, ProjectId, RepositoryId};
+use crate::types::{ProfileName, ProjectId, ProjectUrl, RepositoryId, RepositoryUrl};
 
 /// Create a new profile
 pub async fn create_profile(
@@ -99,7 +99,7 @@ pub async fn unregister_repository(
 }
 
 /// List repositories in a profile
-pub async fn list_repositories(profile_name: String) -> Result<Vec<RepositoryId>, String> {
+pub async fn list_repositories(profile_name: String) -> Result<Vec<RepositoryUrl>, String> {
     let config_dir = default_profile_config_dir()
         .map_err(|e| format!("Failed to get config directory: {}", e))?;
 
@@ -112,7 +112,13 @@ pub async fn list_repositories(profile_name: String) -> Result<Vec<RepositoryId>
         .list_repositories(&profile_name)
         .map_err(|e| format!("Failed to list repositories: {}", e))?;
 
-    Ok(repositories)
+    // Convert RepositoryId to RepositoryUrl
+    let repository_urls = repositories
+        .into_iter()
+        .map(|repo_id| RepositoryUrl(repo_id.url()))
+        .collect();
+
+    Ok(repository_urls)
 }
 
 /// Register a project to a profile
@@ -150,7 +156,7 @@ pub async fn unregister_project(profile_name: String, project_id: ProjectId) -> 
 }
 
 /// List projects in a profile
-pub async fn list_projects(profile_name: String) -> Result<Vec<ProjectId>, String> {
+pub async fn list_projects(profile_name: String) -> Result<Vec<ProjectUrl>, String> {
     let config_dir = default_profile_config_dir()
         .map_err(|e| format!("Failed to get config directory: {}", e))?;
 
@@ -163,7 +169,13 @@ pub async fn list_projects(profile_name: String) -> Result<Vec<ProjectId>, Strin
         .list_projects(&profile_name)
         .map_err(|e| format!("Failed to list projects: {}", e))?;
 
-    Ok(projects)
+    // Convert ProjectId to ProjectUrl
+    let project_urls = projects
+        .into_iter()
+        .map(|project_id| ProjectUrl(project_id.url()))
+        .collect();
+
+    Ok(project_urls)
 }
 
 /// Get profile information

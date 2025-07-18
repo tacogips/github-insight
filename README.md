@@ -105,24 +105,29 @@ Add to your Claude Desktop configuration:
 ## MCP Tools
 
 ### `get_project_resources`
-Retrieve detailed project information including associated issues and pull requests with comprehensive pagination support. Supports light/rich output format (default: rich). Use `get_issues_details` and `get_pull_request_details` functions to get more detailed information.
+Retrieve detailed project information including associated issues and pull requests with comprehensive pagination support. Supports light/rich output format (default: rich). Use `get_issues_details` and `get_pull_request_details` functions to get more detailed information. To get projects from the current profile, use `list_project_urls_in_current_profile` to get project URLs and pass them to this parameter.
 
 ```json
-// Get all projects from profile (default: rich format)
-{"project_url": null}
-
 // Get specific project
-{"project_url": "https://github.com/users/username/projects/1"}
+{"project_urls": ["https://github.com/users/username/projects/1"]}
+
+// Get multiple projects
+{
+  "project_urls": [
+    "https://github.com/users/username/projects/1",
+    "https://github.com/orgs/orgname/projects/5"
+  ]
+}
 
 // Get project with light output format
 {
-  "project_url": "https://github.com/users/username/projects/1",
+  "project_urls": ["https://github.com/users/username/projects/1"],
   "output_option": "light"
 }
 
 // Get project with rich output format (default)
 {
-  "project_url": "https://github.com/users/username/projects/1",
+  "project_urls": ["https://github.com/users/username/projects/1"],
   "output_option": "rich"
 }
 ```
@@ -168,12 +173,9 @@ Fetch detailed project information including metadata, configuration, and projec
 ```
 
 ### `get_repository_details`
-Fetch detailed repository information including metadata, statistics, and configuration by URLs, formatted as markdown with comprehensive details including description, primary language, creation/update dates, milestones, labels, and mentionable users.
+Fetch detailed repository information including metadata, statistics, and configuration by URLs, formatted as markdown with comprehensive details including description, primary language, creation/update dates, milestones, labels, and mentionable users. To get repository URLs from the current profile, use `list_repository_urls_in_current_profile` to get repository URLs and pass them to this parameter.
 
 ```json
-// Get all repositories from profile
-{"repository_urls": null}
-
 // Get specific repository
 {"repository_urls": ["https://github.com/owner/repo"]}
 
@@ -233,19 +235,23 @@ Powerful search across multiple repositories with advanced filtering and flexibl
 - **`light`** (default): Minimal information including title, status, truncated body, and key metadata
 - **`rich`**: Comprehensive details including full body, comments, labels, assignees, dates, and all metadata
 
-### `list_repositories_in_current_profile`
-List all repositories registered in the current profile. Returns repository IDs and URLs for repositories managed by the profile.
+### `list_repository_urls_in_current_profile`
+List all repository URLs registered in the current profile. Returns an array of repository URLs for repositories managed by the profile.
+
+Example return value: ["https://github.com/rust-lang/rust", "https://github.com/tokio-rs/tokio"]
 
 ```json
-// List all repositories in current profile
+// List all repository URLs in current profile
 {}
 ```
 
-### `list_projects_in_current_profile`
-List all projects registered in the current profile. Returns project IDs and URLs for projects managed by the profile.
+### `list_project_urls_in_current_profile`
+List all project URLs registered in the current profile. Returns an array of project URLs for projects managed by the profile.
+
+Example return value: ["https://github.com/users/username/projects/1", "https://github.com/orgs/orgname/projects/5"]
 
 ```json
-// List all projects in current profile
+// List all project URLs in current profile
 {}
 ```
 

@@ -169,23 +169,23 @@ Examples:
 - Search with default query: `{"repository_urls": ["https://github.com/tokio-rs/tokio"]}`
 - Search with light format: `{"github_search_query": "async await", "repository_urls": ["https://github.com/tokio-rs/tokio"], "output_option": "light", "limit": 20}`
 
-#### 7. list_repositories_in_current_profile
-List all repositories registered in the current profile. Returns repository IDs and URLs for repositories managed by the profile.
+#### 7. list_repository_urls_in_current_profile
+List all repository URLs registered in the current profile. Returns repository IDs and URLs for repositories managed by the profile.
 
 Examples:
-- List all repositories in current profile: `{}`
+- List all repository URLs in current profile: `{}`
 
-#### 8. list_projects_in_current_profile
-List all projects registered in the current profile. Returns project IDs and URLs for projects managed by the profile.
+#### 8. list_project_urls_in_current_profile
+List all project URLs registered in the current profile. Returns project IDs and URLs for projects managed by the profile.
 
 Examples:
-- List all projects in current profile: `{}`
+- List all project URLs in current profile: `{}`
 
 ### Common Workflows
 
 1. **Profile Management**:
-   - Use list_repositories_in_current_profile to get all repositories registered in the current profile
-   - Use list_projects_in_current_profile to get all projects registered in the current profile
+   - Use list_repository_urls_in_current_profile to get all repository URLs registered in the current profile
+   - Use list_project_urls_in_current_profile to get all project URLs registered in the current profile
 
 2. **Repository Search**:
    - Use search_in_repositories to find issues/PRs by keywords across specific repositories
