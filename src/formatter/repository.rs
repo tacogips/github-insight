@@ -58,7 +58,7 @@ pub fn repository_body_markdown_with_timezone(
                 String::new()
             };
             content.push_str(&format!(
-                "- {} (ID: {}){}\n",
+                "- {} (Milestone ID: {}){}\n",
                 milestone.milestone_name, milestone.milestone_id, due_date_info
             ));
         }

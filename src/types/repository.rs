@@ -161,6 +161,24 @@ impl From<&str> for RepositoryUrl {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MilestoneId(pub u64);
+
+impl std::fmt::Display for MilestoneId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MilestoneName(pub String);
+
+impl std::fmt::Display for MilestoneName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Repository milestone association mapping milestone IDs to names.
 ///
 /// This struct represents the relationship between a repository and its milestones,
@@ -168,9 +186,9 @@ impl From<&str> for RepositoryUrl {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RepositoryMilestone {
     /// The numeric milestone identifier as assigned by GitHub
-    pub milestone_id: u64,
+    pub milestone_id: MilestoneId,
     /// The human-readable milestone name as displayed in GitHub
-    pub milestone_name: String,
+    pub milestone_name: MilestoneName,
 
     pub due_date: Option<DateTime<Utc>>,
 }
@@ -350,8 +368,8 @@ impl TryFrom<RepositoryNode> for GithubRepository {
                     .map(|date| date.with_timezone(&Utc));
 
                 RepositoryMilestone {
-                    milestone_id: milestone.number,
-                    milestone_name: milestone.title,
+                    milestone_id: MilestoneId(milestone.number),
+                    milestone_name: MilestoneName(milestone.title),
                     due_date,
                 }
             })

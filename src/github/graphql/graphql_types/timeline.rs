@@ -1,17 +1,31 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use strum::{Display, EnumString};
 
 use crate::github::graphql::graphql_types::pager::PageInfo;
 use crate::github::graphql::graphql_types::repository::{Repository, RepositoryOwner};
 use crate::types::{IssueId, IssueOrPullrequestId, PullRequestId, RepositoryId};
 
-// Constants for GraphQL API values
-const TYPENAME_CROSS_REFERENCED_EVENT: &str = "CrossReferencedEvent";
-const TYPENAME_CONNECTED_EVENT: &str = "ConnectedEvent";
-const TYPENAME_DISCONNECTED_EVENT: &str = "DisconnectedEvent";
-const TYPENAME_ISSUE: &str = "Issue";
-const TYPENAME_PULL_REQUEST: &str = "PullRequest";
+/// Timeline event types from GraphQL API
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumString, Display)]
+pub enum TimelineEventType {
+    #[strum(serialize = "CrossReferencedEvent")]
+    CrossReferenced,
+    #[strum(serialize = "ConnectedEvent")]
+    Connected,
+    #[strum(serialize = "DisconnectedEvent")]
+    Disconnected,
+}
+
+/// GitHub resource types from GraphQL API  
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumString, Display)]
+pub enum GitHubResourceType {
+    #[strum(serialize = "Issue")]
+    Issue,
+    #[strum(serialize = "PullRequest")]
+    PullRequest,
+}
 
 /// Timeline event structures
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -133,17 +147,20 @@ impl<'de> Deserialize<'de> for TimelineItem {
 
                 let created_at = created_at.unwrap_or_else(Utc::now);
 
-                match typename.as_deref() {
-                    Some(TYPENAME_CROSS_REFERENCED_EVENT) => Ok(TimelineItem::CrossReferenced {
+                match typename
+                    .as_deref()
+                    .and_then(|s| s.parse::<TimelineEventType>().ok())
+                {
+                    Some(TimelineEventType::CrossReferenced) => Ok(TimelineItem::CrossReferenced {
                         created_at,
                         source,
                         will_close_target,
                     }),
-                    Some(TYPENAME_CONNECTED_EVENT) => Ok(TimelineItem::Connected {
+                    Some(TimelineEventType::Connected) => Ok(TimelineItem::Connected {
                         created_at,
                         subject,
                     }),
-                    Some(TYPENAME_DISCONNECTED_EVENT) => Ok(TimelineItem::Disconnected {
+                    Some(TimelineEventType::Disconnected) => Ok(TimelineItem::Disconnected {
                         created_at,
                         subject,
                     }),
@@ -252,8 +269,11 @@ impl<'de> Deserialize<'de> for CrossReferenceSource {
                     }
                 }
 
-                match typename.as_deref() {
-                    Some(TYPENAME_ISSUE) => Ok(CrossReferenceSource::Issue {
+                match typename
+                    .as_deref()
+                    .and_then(|s| s.parse::<GitHubResourceType>().ok())
+                {
+                    Some(GitHubResourceType::Issue) => Ok(CrossReferenceSource::Issue {
                         number: number.unwrap_or(0),
                         title: title.unwrap_or_default(),
                         url: url.unwrap_or_default(),
@@ -265,18 +285,20 @@ impl<'de> Deserialize<'de> for CrossReferenceSource {
                             name: String::new(),
                         }),
                     }),
-                    Some(TYPENAME_PULL_REQUEST) => Ok(CrossReferenceSource::PullRequest {
-                        number: number.unwrap_or(0),
-                        title: title.unwrap_or_default(),
-                        url: url.unwrap_or_default(),
-                        state: state.unwrap_or_default(),
-                        repository: repository.unwrap_or_else(|| Repository {
-                            owner: RepositoryOwner {
-                                login: String::new(),
-                            },
-                            name: String::new(),
-                        }),
-                    }),
+                    Some(GitHubResourceType::PullRequest) => {
+                        Ok(CrossReferenceSource::PullRequest {
+                            number: number.unwrap_or(0),
+                            title: title.unwrap_or_default(),
+                            url: url.unwrap_or_default(),
+                            state: state.unwrap_or_default(),
+                            repository: repository.unwrap_or_else(|| Repository {
+                                owner: RepositoryOwner {
+                                    login: String::new(),
+                                },
+                                name: String::new(),
+                            }),
+                        })
+                    }
                     _ => Ok(CrossReferenceSource::Other),
                 }
             }
@@ -359,8 +381,11 @@ impl<'de> Deserialize<'de> for ConnectedSubject {
                     }
                 }
 
-                match typename.as_deref() {
-                    Some(TYPENAME_ISSUE) => Ok(ConnectedSubject::Issue {
+                match typename
+                    .as_deref()
+                    .and_then(|s| s.parse::<GitHubResourceType>().ok())
+                {
+                    Some(GitHubResourceType::Issue) => Ok(ConnectedSubject::Issue {
                         number: number.unwrap_or(0),
                         title: title.unwrap_or_default(),
                         url: url.unwrap_or_default(),
@@ -372,7 +397,7 @@ impl<'de> Deserialize<'de> for ConnectedSubject {
                             name: String::new(),
                         }),
                     }),
-                    Some(TYPENAME_PULL_REQUEST) => Ok(ConnectedSubject::PullRequest {
+                    Some(GitHubResourceType::PullRequest) => Ok(ConnectedSubject::PullRequest {
                         number: number.unwrap_or(0),
                         title: title.unwrap_or_default(),
                         url: url.unwrap_or_default(),

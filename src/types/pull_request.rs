@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumString};
 
 use crate::types::{IssueOrPullrequestId, User, repository::RepositoryId};
 
@@ -66,24 +67,18 @@ impl std::fmt::Display for PullRequestCommentNumber {
 }
 
 /// Represents the state of a GitHub pull request.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, EnumString, Display)]
+#[strum(serialize_all = "UPPERCASE")] // For GraphQL API compatibility
 pub enum PullRequestState {
     /// Pull request is open
+    #[strum(serialize = "OPEN")]
     Open,
     /// Pull request is closed without merging
+    #[strum(serialize = "CLOSED")]
     Closed,
     /// Pull request is merged
+    #[strum(serialize = "MERGED")]
     Merged,
-}
-
-impl std::fmt::Display for PullRequestState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PullRequestState::Open => write!(f, "open"),
-            PullRequestState::Closed => write!(f, "closed"),
-            PullRequestState::Merged => write!(f, "merged"),
-        }
-    }
 }
 
 /// Strong-typed pull request identifier with URL parsing capabilities.

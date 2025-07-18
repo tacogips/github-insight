@@ -13,6 +13,66 @@ use crate::types::{
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
+
+/// Common status field names used in GitHub Projects
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumString, Display, EnumIter)]
+#[strum(serialize_all = "lowercase")]
+pub enum StatusFieldNames {
+    Status,
+    Column,
+    State,
+    Phase,
+    Priority,
+    Board,
+    Team,
+}
+
+impl StatusFieldNames {
+    /// Check if a field name matches any status field variant (case-insensitive)
+    pub fn matches_field_name(field_name: &ProjectFieldName) -> bool {
+        Self::iter().any(|variant| field_name.eq_ignore_ascii_case(&variant.to_string()))
+    }
+}
+
+/// Start date field name patterns
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumString, Display, EnumIter)]
+#[strum(serialize_all = "lowercase")]
+pub enum StartDateFieldNames {
+    Start,
+    #[strum(serialize = "start date")]
+    StartDate,
+    #[strum(serialize = "startdate")]
+    StartDateNoSpace,
+}
+
+impl StartDateFieldNames {
+    /// Check if a field name matches any start date field variant (case-insensitive)
+    pub fn matches_field_name(field_name: &ProjectFieldName) -> bool {
+        Self::iter().any(|variant| field_name.eq_ignore_ascii_case(&variant.to_string()))
+    }
+}
+
+/// End date field name patterns
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumString, Display, EnumIter)]
+#[strum(serialize_all = "lowercase")]
+pub enum EndDateFieldNames {
+    End,
+    #[strum(serialize = "end date")]
+    EndDate,
+    #[strum(serialize = "enddate")]
+    EndDateNoSpace,
+    #[strum(serialize = "due date")]
+    DueDate,
+    Deadline,
+}
+
+impl EndDateFieldNames {
+    /// Check if a field name matches any end date field variant (case-insensitive)
+    pub fn matches_field_name(field_name: &ProjectFieldName) -> bool {
+        Self::iter().any(|variant| field_name.eq_ignore_ascii_case(&variant.to_string()))
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectNodeIdResponse {
@@ -304,17 +364,11 @@ impl TryFrom<ProjectItem> for ProjectResource {
         }
 
         // Extract column name from field values (look for Status field)
-        // Common field names that represent project status/column
-        let status_field_names = [
-            "Status", "status", "Column", "column", "State", "state", "Phase", "phase", "Priority",
-            "priority", "Board", "board", "Team", "team",
-        ];
-
         let column_name = custom_field_values
             .iter()
             .find(|fv| {
                 // Check if field name matches any of the common status field names
-                let matches = status_field_names.iter().any(|&name| fv.field_name.eq_ignore_ascii_case(name));
+                let matches = StatusFieldNames::matches_field_name(&fv.field_name);
                 if matches {
                     tracing::debug!("Found status field match: {} matches known status field names", fv.field_name);
                 }
@@ -380,7 +434,7 @@ impl TryFrom<ProjectItem> for ProjectResource {
                 // Extract start and end dates from custom field values
                 let start_date = custom_field_values
                     .iter()
-                    .find(|fv| is_start_date_field(&fv.field_name))
+                    .find(|fv| StartDateFieldNames::matches_field_name(&fv.field_name))
                     .and_then(|fv| match &fv.value {
                         ProjectFieldValue::Date(date) => Some(*date),
                         _ => None,
@@ -388,7 +442,7 @@ impl TryFrom<ProjectItem> for ProjectResource {
 
                 let end_date = custom_field_values
                     .iter()
-                    .find(|fv| is_end_date_field(&fv.field_name))
+                    .find(|fv| EndDateFieldNames::matches_field_name(&fv.field_name))
                     .and_then(|fv| match &fv.value {
                         ProjectFieldValue::Date(date) => Some(*date),
                         _ => None,
@@ -435,7 +489,7 @@ impl TryFrom<ProjectItem> for ProjectResource {
                 // Extract start and end dates from custom field values
                 let start_date = custom_field_values
                     .iter()
-                    .find(|fv| is_start_date_field(&fv.field_name))
+                    .find(|fv| StartDateFieldNames::matches_field_name(&fv.field_name))
                     .and_then(|fv| match &fv.value {
                         ProjectFieldValue::Date(date) => Some(*date),
                         _ => None,
@@ -443,7 +497,7 @@ impl TryFrom<ProjectItem> for ProjectResource {
 
                 let end_date = custom_field_values
                     .iter()
-                    .find(|fv| is_end_date_field(&fv.field_name))
+                    .find(|fv| EndDateFieldNames::matches_field_name(&fv.field_name))
                     .and_then(|fv| match &fv.value {
                         ProjectFieldValue::Date(date) => Some(*date),
                         _ => None,
@@ -474,7 +528,7 @@ impl TryFrom<ProjectItem> for ProjectResource {
                 // Extract start and end dates from custom field values
                 let start_date = custom_field_values
                     .iter()
-                    .find(|fv| is_start_date_field(&fv.field_name))
+                    .find(|fv| StartDateFieldNames::matches_field_name(&fv.field_name))
                     .and_then(|fv| match &fv.value {
                         ProjectFieldValue::Date(date) => Some(*date),
                         _ => None,
@@ -482,7 +536,7 @@ impl TryFrom<ProjectItem> for ProjectResource {
 
                 let end_date = custom_field_values
                     .iter()
-                    .find(|fv| is_end_date_field(&fv.field_name))
+                    .find(|fv| EndDateFieldNames::matches_field_name(&fv.field_name))
                     .and_then(|fv| match &fv.value {
                         ProjectFieldValue::Date(date) => Some(*date),
                         _ => None,
@@ -513,22 +567,6 @@ impl TryFrom<ProjectItem> for ProjectResource {
             _ => Err(anyhow::anyhow!("Unsupported project item content type")),
         }
     }
-}
-
-/// Check if a field name matches start date patterns
-fn is_start_date_field(field_name: &ProjectFieldName) -> bool {
-    field_name.eq_ignore_ascii_case("start")
-        || field_name.eq_ignore_ascii_case("start date")
-        || field_name.eq_ignore_ascii_case("startdate")
-}
-
-/// Check if a field name matches end date patterns
-fn is_end_date_field(field_name: &ProjectFieldName) -> bool {
-    field_name.eq_ignore_ascii_case("end")
-        || field_name.eq_ignore_ascii_case("end date")
-        || field_name.eq_ignore_ascii_case("enddate")
-        || field_name.eq_ignore_ascii_case("due date")
-        || field_name.eq_ignore_ascii_case("deadline")
 }
 
 impl ProjectNode {

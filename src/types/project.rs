@@ -12,6 +12,7 @@ use schemars::JsonSchema;
 use crate::types::label::Label;
 use crate::types::user::User;
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumString};
 
 use crate::types::{issue::IssueId, pull_request::PullRequestId, repository::Owner};
 
@@ -30,11 +31,15 @@ static PROJECT_URL_REGEX: Lazy<Regex> = Lazy::new(|| {
 });
 
 /// Project type to distinguish between user and organization projects
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, EnumString, Display,
+)]
 pub enum ProjectType {
     /// User project (github.com/users/owner/projects/123)
+    #[strum(serialize = "users")]
     User,
-    /// Organization project (github.com/orgs/owner/projects/123)
+    /// Organization project (github.com/orgs/owner/projects/123)  
+    #[strum(serialize = "orgs")]
     Organization,
 }
 
@@ -91,13 +96,9 @@ impl ProjectId {
         }
     }
     pub fn url(&self) -> String {
-        let path_type = match self.project_type {
-            ProjectType::Organization => "orgs",
-            ProjectType::User => "users",
-        };
         format!(
             "https://github.com/{}/{}/projects/{}",
-            path_type, self.owner, self.number
+            self.project_type, self.owner, self.number
         )
     }
 
@@ -113,11 +114,12 @@ impl ProjectId {
         // https://github.com/orgs/owner/projects/123
         // https://github.com/users/owner/projects/123
         if let Some(captures) = PROJECT_URL_REGEX.captures(url) {
-            let project_type = match captures.get(1).unwrap().as_str() {
-                "orgs" => ProjectType::Organization,
-                "users" => ProjectType::User,
-                _ => return Err("Invalid project type".to_string()),
-            };
+            let project_type = captures
+                .get(1)
+                .unwrap()
+                .as_str()
+                .parse::<ProjectType>()
+                .map_err(|_| "Invalid project type".to_string())?;
             let owner = captures.get(2).unwrap().as_str().to_string();
             let number = captures
                 .get(3)
