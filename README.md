@@ -186,38 +186,43 @@ Fetch detailed repository information including metadata, statistics, and config
 }
 ```
 
-### `search_across_repositories`
+### `search_in_repositories`
 Powerful search across multiple repositories with advanced filtering and flexible output formatting. Use `get_issues_details` and `get_pull_request_details` functions to get more detailed information.
 
 ```json
-// Basic search (default light format)
-{"query": "authentication bug"}
-
-// Advanced search with filters
+// Search in specific repositories
 {
-  "query": "is:open label:bug created:>2024-01-01",
-  "repository_url": "https://github.com/owner/repo",
-  "limit": 50
+  "github_search_query": "memory leak",
+  "repository_urls": ["https://github.com/rust-lang/rust", "https://github.com/tokio-rs/tokio"]
+}
+
+// Search with default query (open issues and PRs)
+{
+  "repository_urls": ["https://github.com/tokio-rs/tokio"]
 }
 
 // Search with rich output format (comprehensive details)
 {
-  "query": "memory leak",
-  "output_option": "rich"
+  "github_search_query": "async await",
+  "repository_urls": ["https://github.com/tokio-rs/tokio"],
+  "output_option": "rich",
+  "limit": 20
 }
 
 // Search with light output format (minimal information)
 {
-  "query": "performance issue",
+  "github_search_query": "performance issue",
+  "repository_urls": ["https://github.com/rust-lang/rust"],
   "output_option": "light"
 }
 
 // Paginated search
 {
-  "query": "memory leak",
+  "github_search_query": "memory leak",
+  "repository_urls": ["https://github.com/rust-lang/rust"],
   "cursors": [
     {
-      "repository_id": {"owner": "owner", "repository_name": "repo"},
+      "repository_id": {"owner": "rust-lang", "repository_name": "rust"},
       "cursor": "cursor_token_here"
     }
   ]
@@ -227,6 +232,22 @@ Powerful search across multiple repositories with advanced filtering and flexibl
 #### Output Format Options
 - **`light`** (default): Minimal information including title, status, truncated body, and key metadata
 - **`rich`**: Comprehensive details including full body, comments, labels, assignees, dates, and all metadata
+
+### `list_repositories_in_current_profile`
+List all repositories registered in the current profile. Returns repository IDs and URLs for repositories managed by the profile.
+
+```json
+// List all repositories in current profile
+{}
+```
+
+### `list_projects_in_current_profile`
+List all projects registered in the current profile. Returns project IDs and URLs for projects managed by the profile.
+
+```json
+// List all projects in current profile
+{}
+```
 
 ## CLI Commands
 

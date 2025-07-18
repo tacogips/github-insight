@@ -122,6 +122,91 @@ github-insight-mcp http [--address ADDR] [--github-token TOKEN] [--timezone TIME
 
 Use `CARGO_TERM_QUIET=true` prefix to reduce output.
 
+## MCP Tools
+
+### Available Tools
+
+#### 1. get_project_resources
+Get all project resources from specified project(s). Returns all project resources as markdown array including title, description, resource counts, and timestamps. Each project resource includes field IDs that can be used for project field updates. This tool fetches all resources without pagination.
+
+Examples:
+- Get all project resources from all projects in profile: `{}`
+- Get resources from specific project: `{"project_url": "https://github.com/users/username/projects/1"}`
+- Get resources with light format: `{"output_option": "light"}`
+- Get resources with rich format (default): `{"output_option": "rich"}`
+
+#### 2. get_issues_details
+Get issues by their URLs from specified repositories. Returns detailed issue information including comments, formatted as markdown with comprehensive details including title, body, labels, assignees, creation/update dates, and all comments with timestamps.
+
+Examples:
+- Get specific issues: `{"issue_urls": ["https://github.com/rust-lang/rust/issues/12345", "https://github.com/tokio-rs/tokio/issues/5678"]}`
+
+#### 3. get_pull_request_details
+Get pull requests by their URLs from specified repositories. Returns detailed pull request information including comments, formatted as markdown with comprehensive details including title, body, labels, assignees, creation/update dates, review status, and all comments with timestamps.
+
+Examples:
+- Get specific pull requests: `{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}`
+
+#### 4. get_project_details
+Get project details by their URLs. Returns detailed project information formatted as markdown with comprehensive metadata including title, description, creation/update dates, project node ID, and other project properties. The project node ID can be used for project updates.
+
+Examples:
+- Get specific projects: `{"project_urls": ["https://github.com/users/username/projects/1", "https://github.com/orgs/orgname/projects/5"]}`
+
+#### 5. get_repository_details
+Get repository details by URLs. Returns detailed repository information formatted as markdown with comprehensive metadata including URL, description, default branch, mentionable users, labels, milestones, releases (with configurable limit), and timestamps.
+
+Examples:
+- Get all repositories from profile: `{}`
+- Get specific repositories: `{"repository_urls": ["https://github.com/rust-lang/rust", "https://github.com/tokio-rs/tokio"]}`
+- Get repositories with custom release limit: `{"repository_urls": ["https://github.com/rust-lang/rust"], "showing_release_limit": 5}`
+
+#### 6. search_in_repositories
+Search across multiple repositories for issues, PRs, and projects. Comprehensive search across multiple resource types with support for specific repository targeting and advanced pagination.
+
+Examples:
+- Search in specific repositories: `{"github_search_query": "memory leak", "repository_urls": ["https://github.com/rust-lang/rust", "https://github.com/tokio-rs/tokio"]}`
+- Search with default query: `{"repository_urls": ["https://github.com/tokio-rs/tokio"]}`
+- Search with light format: `{"github_search_query": "async await", "repository_urls": ["https://github.com/tokio-rs/tokio"], "output_option": "light", "limit": 20}`
+
+#### 7. list_repositories_in_current_profile
+List all repositories registered in the current profile. Returns repository IDs and URLs for repositories managed by the profile.
+
+Examples:
+- List all repositories in current profile: `{}`
+
+#### 8. list_projects_in_current_profile
+List all projects registered in the current profile. Returns project IDs and URLs for projects managed by the profile.
+
+Examples:
+- List all projects in current profile: `{}`
+
+### Common Workflows
+
+1. **Profile Management**:
+   - Use list_repositories_in_current_profile to get all repositories registered in the current profile
+   - Use list_projects_in_current_profile to get all projects registered in the current profile
+
+2. **Repository Search**:
+   - Use search_in_repositories to find issues/PRs by keywords across specific repositories
+   - Support for pagination using cursors for large result sets
+   - Choose between light and rich output formats
+
+3. **Specific Resource Access**:
+   - Use get_issues_details to get detailed issue information with comments
+   - Use get_pull_request_details to get detailed pull request information with comments
+
+4. **Project Management**:
+   - Use get_project_resources to access project boards and associated resources
+   - Fetch from all projects in profile or specific project URLs
+   - Choose between light and rich output formats (default: rich)
+
+5. **Output Formatting**:
+   - Rich format provides comprehensive details including full comments, timestamps, custom fields
+   - Light format provides minimal information for quick overview
+   - get_project_resources defaults to rich format for detailed project information
+   - search_in_repositories defaults to light format for quick search results
+
 ## CLI Usage
 
 ### Running CLI
