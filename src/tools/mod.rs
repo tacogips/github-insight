@@ -48,9 +48,14 @@ pub struct GitInsightTools {
 }
 
 const DEFAULT_SEARCH_LIMIT: usize = 30;
+const DEFAULT_SEARCH_QUERY: &str = "state:open";
 
 fn default_search_limit() -> usize {
     DEFAULT_SEARCH_LIMIT
+}
+
+fn default_search_query() -> String {
+    DEFAULT_SEARCH_QUERY.to_string()
 }
 
 impl GitInsightTools {
@@ -505,15 +510,16 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Search across all registered repositories for issues, PRs, and projects. **REQUIRED: Must provide a 'github_search_query' parameter** - this is the search text that specifies what to search for. Comprehensive search across multiple resource types. Use get_issues_details and get_pull_request_details functions to get more detailed information. Note: Pagination with cursors is currently disabled - results are returned in a single response."
+        description = "Search for issues, PRs, and projects across registered repositories or a specific repository. The 'github_search_query' parameter is optional and defaults to open issues and PRs. When 'specific_repository_url' is provided, searches in that repository even if not registered. Comprehensive search across multiple resource types. Use get_issues_details and get_pull_request_details functions to get more detailed information. Note: Pagination with cursors is currently disabled - results are returned in a single response."
     )]
-    async fn search_across_repositories(
+    async fn search_in_repositories(
         &self,
         #[tool(param)]
         #[schemars(
-            description = "Search query text - this parameter is mandatory and frequently forgotten! Supports GitHub search syntax. Examples: 'is:pr state:open', 'is:issue label:bug', 'authentication error', 'head:feature-branch', 'is:pr author:username', 'is:issue assignee:username', 'created:2024-01-01..2024-12-31'. Note: Any repo:owner/name specifications in the query will be overridden when searching specific repositories."
+            description = "Search query text (optional, default: open issues and PRs). Supports GitHub search syntax. Examples: 'is:pr state:open', 'is:issue label:bug', 'authentication error', 'head:feature-branch', 'is:pr author:username', 'is:issue assignee:username', 'created:2024-01-01..2024-12-31'. Note: Any repo:owner/name specifications in the query will be overridden when searching specific repositories."
         )]
-        github_search_query: String,
+        #[schemars(default = "default_search_query")]
+        github_search_query: Option<String>,
         #[tool(param)]
         #[schemars(
             description = "Optional specific repository URL to search in (e.g., 'https://github.com/owner/repo'). If not provided, searches across all repositories registered in the profile. When specified, allows searching in repositories that are not registered in the profile."
@@ -550,8 +556,9 @@ impl GitInsightTools {
             OutputOption::default()
         };
 
-        // Convert String to SearchQuery
-        let query = SearchQuery::new(github_search_query);
+        // Convert String to SearchQuery, using default if not provided
+        let query_string = github_search_query.unwrap_or_else(|| DEFAULT_SEARCH_QUERY.to_string());
+        let query = SearchQuery::new(query_string);
 
         let repository_urls = if let Some(repo_url_str) = specific_repository_url {
             // Search in specific repository

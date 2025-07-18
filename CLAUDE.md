@@ -131,7 +131,7 @@ Use `CARGO_TERM_QUIET=true` prefix to reduce output.
 cargo run --bin github-insight-cli -- [OPTIONS] <COMMAND>
 
 # With environment variables
-GITHUB_TOKEN=ghp_token cargo run --bin github-insight-cli -- [OPTIONS] <COMMAND>
+GITHUB_INSIGHT_GITHUB_TOKEN=ghp_token cargo run --bin github-insight-cli -- [OPTIONS] <COMMAND>
 ```
 
 ### Global Options

@@ -1,4 +1,7 @@
-use crate::formatter::{MarkdownContent, TimezoneOffset, format_datetime_with_timezone_offset};
+use crate::formatter::{
+    MarkdownContent, TimezoneOffset, format_date_with_timezone_offset,
+    format_datetime_with_timezone_offset,
+};
 use crate::types::GithubRepository;
 
 // Limit to 10 releases by default
@@ -73,7 +76,7 @@ pub fn repository_body_markdown_with_timezone(
             let due_date_info = if let Some(due_date) = milestone.due_date {
                 format!(
                     " (Due date: {})",
-                    format_datetime_with_timezone_offset(due_date, timezone)
+                    format_date_with_timezone_offset(due_date, timezone)
                 )
             } else {
                 String::new()
