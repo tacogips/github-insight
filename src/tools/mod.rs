@@ -383,9 +383,9 @@ impl GitInsightTools {
         &self,
         #[tool(param)]
         #[schemars(
-            description = "Optional repository URLs to fetch. If not provided, fetches all repositories from the profile. Examples: ['https://github.com/rust-lang/rust', 'https://github.com/tokio-rs/tokio']"
+            description = "Optional specific repository URLs to fetch. If not provided, fetches all repositories from the profile. Examples: ['https://github.com/rust-lang/rust', 'https://github.com/tokio-rs/tokio']"
         )]
-        repository_urls: Option<Vec<String>>,
+        specific_repository_urls: Option<Vec<String>>,
         #[tool(param)]
         #[schemars(
             description = "Optional limit for number of releases to show per repository (default: 10). Examples: 5, 20"
@@ -403,7 +403,7 @@ impl GitInsightTools {
             McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
         })?;
 
-        let repository_urls = if let Some(urls) = repository_urls {
+        let repository_urls = if let Some(urls) = specific_repository_urls {
             // Use provided URLs
             urls.into_iter()
                 .map(crate::types::RepositoryUrl)
@@ -505,26 +505,20 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Search across all registered repositories for issues, PRs, and projects. **REQUIRED: Must provide a 'query' parameter** - this is the search text that specifies what to search for. Comprehensive search across multiple resource types. Use get_issues_details and get_pull_request_details functions to get more detailed information. 
-
-Pagination with cursors:
-- First call: omit cursors parameter to get initial results
-- Response includes cursors array like: [{'cursor': 'Y3Vyc29yOjE=', 'repository_id': {'owner': 'rust-lang', 'repository_name': 'rust'}}]
-- Next call: pass returned cursors to get next page from each repository
-- Continue until no more cursors returned"
+        description = "Search across all registered repositories for issues, PRs, and projects. **REQUIRED: Must provide a 'github_search_query' parameter** - this is the search text that specifies what to search for. Comprehensive search across multiple resource types. Use get_issues_details and get_pull_request_details functions to get more detailed information. Note: Pagination with cursors is currently disabled - results are returned in a single response."
     )]
     async fn search_across_repositories(
         &self,
         #[tool(param)]
         #[schemars(
-            description = "**REQUIRED**: Search query text - this parameter is mandatory and frequently forgotten! Supports GitHub search syntax. Examples: 'is:pr state:open', 'is:issue label:bug', 'authentication error', 'head:feature-branch', 'is:pr author:username', 'is:issue assignee:username', 'created:2024-01-01..2024-12-31'. Note: Any repo:owner/name specifications in the query will be overridden when searching specific repositories."
+            description = "Search query text - this parameter is mandatory and frequently forgotten! Supports GitHub search syntax. Examples: 'is:pr state:open', 'is:issue label:bug', 'authentication error', 'head:feature-branch', 'is:pr author:username', 'is:issue assignee:username', 'created:2024-01-01..2024-12-31'. Note: Any repo:owner/name specifications in the query will be overridden when searching specific repositories."
         )]
-        query: String,
+        github_search_query: String,
         #[tool(param)]
         #[schemars(
-            description = "Optional repository URL to search in (e.g., 'https://github.com/owner/repo'). If not provided, searches across all repositories registered in the profile. When specified, allows searching in repositories that are not registered in the profile."
+            description = "Optional specific repository URL to search in (e.g., 'https://github.com/owner/repo'). If not provided, searches across all repositories registered in the profile. When specified, allows searching in repositories that are not registered in the profile."
         )]
-        repository_url: Option<String>,
+        specific_repository_url: Option<String>,
         #[tool(param)]
         #[schemars(
             description = "Result limit per repository (default 30, max 100). Examples: 10, 50"
@@ -557,9 +551,9 @@ Pagination with cursors:
         };
 
         // Convert String to SearchQuery
-        let query = SearchQuery::new(query);
+        let query = SearchQuery::new(github_search_query);
 
-        let repository_urls = if let Some(repo_url_str) = repository_url {
+        let repository_urls = if let Some(repo_url_str) = specific_repository_url {
             // Search in specific repository
             let repo_id =
                 crate::types::RepositoryId::parse_url(&crate::types::RepositoryUrl(repo_url_str))
