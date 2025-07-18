@@ -6,12 +6,56 @@ pub mod repository;
 
 use chrono::{DateTime, FixedOffset, Local, Utc};
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumIter, EnumString};
 
 pub use issue::*;
 pub use project::*;
 pub use project_resource::*;
 pub use pull_request::*;
 pub use repository::*;
+
+/// Common timezone abbreviations with their UTC offsets
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumString, Display, EnumIter)]
+pub enum TimezoneAbbreviation {
+    #[strum(serialize = "UTC")]
+    Utc,
+    #[strum(serialize = "GMT")]
+    Gmt,
+    #[strum(serialize = "JST")]
+    Jst,
+    #[strum(serialize = "EST")]
+    Est,
+    #[strum(serialize = "PST")]
+    Pst,
+    #[strum(serialize = "PDT")]
+    Pdt,
+    #[strum(serialize = "BST")]
+    Bst,
+}
+
+impl TimezoneAbbreviation {
+    /// Get the offset hours for this timezone abbreviation
+    pub fn offset_hours(&self) -> i32 {
+        match self {
+            Self::Utc | Self::Gmt => 0,
+            Self::Jst => 9,
+            Self::Est => -5,
+            Self::Pst => -8,
+            Self::Pdt => -7,
+            Self::Bst => 1,
+        }
+    }
+
+    /// Get the offset minutes for this timezone abbreviation (usually 0)
+    pub fn offset_minutes(&self) -> i32 {
+        0 // All supported abbreviations are on hour boundaries
+    }
+
+    /// Create a TimezoneOffset from this abbreviation
+    pub fn to_timezone_offset(&self) -> TimezoneOffset {
+        TimezoneOffset::new(self.offset_hours(), self.offset_minutes(), self.to_string())
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct MarkdownContent(pub String);
@@ -78,30 +122,29 @@ impl TimezoneOffset {
 
     /// Parse timezone offset from string (e.g., "+09:00", "-05:30", "UTC")
     pub fn parse(tz_str: &str) -> Option<Self> {
-        match tz_str {
-            "UTC" | "GMT" => Some(Self::new(0, 0, "UTC".to_string())),
-            "JST" => Some(Self::new(9, 0, "JST".to_string())),
-            "EST" => Some(Self::new(-5, 0, "EST".to_string())),
-            "PST" => Some(Self::new(-8, 0, "PST".to_string())),
-            "PDT" => Some(Self::new(-7, 0, "PDT".to_string())),
-            "BST" => Some(Self::new(1, 0, "BST".to_string())),
-            s if s.starts_with('+') || s.starts_with('-') => {
-                let sign = if s.starts_with('-') { -1 } else { 1 };
-                let parts: Vec<&str> = s[1..].split(':').collect();
-                if parts.len() == 2 {
-                    if let (Ok(hours), Ok(minutes)) =
-                        (parts[0].parse::<i32>(), parts[1].parse::<i32>())
-                    {
-                        Some(Self::new(sign * hours, sign * minutes, s.to_string()))
-                    } else {
-                        None
-                    }
-                } else {
-                    None
+        // First try to parse as a known timezone abbreviation
+        if let Ok(tz_abbr) = tz_str.parse::<TimezoneAbbreviation>() {
+            return Some(tz_abbr.to_timezone_offset());
+        }
+
+        // Handle UTC and GMT as special cases (both map to UTC)
+        if tz_str.eq_ignore_ascii_case("UTC") || tz_str.eq_ignore_ascii_case("GMT") {
+            return Some(Self::new(0, 0, "UTC".to_string()));
+        }
+
+        // Handle offset format strings like "+09:00", "-05:30"
+        if tz_str.starts_with('+') || tz_str.starts_with('-') {
+            let sign = if tz_str.starts_with('-') { -1 } else { 1 };
+            let parts: Vec<&str> = tz_str[1..].split(':').collect();
+            if parts.len() == 2 {
+                if let (Ok(hours), Ok(minutes)) = (parts[0].parse::<i32>(), parts[1].parse::<i32>())
+                {
+                    return Some(Self::new(sign * hours, sign * minutes, tz_str.to_string()));
                 }
             }
-            _ => None,
         }
+
+        None
     }
 
     /// Convert to chrono FixedOffset

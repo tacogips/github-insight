@@ -9,6 +9,7 @@ use chrono::{DateTime, Utc};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumString};
 
 use crate::types::{User, repository::RepositoryId};
 
@@ -73,21 +74,15 @@ impl std::fmt::Display for CommentNumber {
 }
 
 /// Represents the state of a GitHub issue.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, EnumString, Display)]
+#[strum(serialize_all = "UPPERCASE")] // For GraphQL API compatibility
 pub enum IssueState {
     /// Issue is open and active
+    #[strum(serialize = "OPEN")]
     Open,
-    /// Issue is closed
+    /// Issue is closed  
+    #[strum(serialize = "CLOSED")]
     Closed,
-}
-
-impl std::fmt::Display for IssueState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            IssueState::Open => write!(f, "Open"),
-            IssueState::Closed => write!(f, "Closed"),
-        }
-    }
 }
 
 /// Strong-typed issue identifier with URL parsing capabilities.

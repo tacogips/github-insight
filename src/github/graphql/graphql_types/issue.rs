@@ -9,9 +9,6 @@ use crate::github::graphql::graphql_types::user::{AssigneesConnection, Author};
 use crate::github::graphql::graphql_types::{LabelsConnection, MilestoneNode};
 use crate::types::{Issue, IssueOrPullrequestId, RepositoryId, User};
 
-// Constants for GraphQL API values
-const STATE_OPEN: &str = "OPEN";
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IssueRepository {
     pub issues: IssuesConnection,
@@ -93,11 +90,11 @@ impl TryFrom<IssueNode> for crate::types::Issue {
             .as_ref()
             .map(|author| User::from(author.login.clone()));
 
-        // Parse state
-        let state = match issue_node.state.as_str() {
-            STATE_OPEN => IssueState::Open,
-            _ => IssueState::Closed,
-        };
+        // Parse state using strum
+        let state = issue_node
+            .state
+            .parse::<IssueState>()
+            .unwrap_or(IssueState::Closed);
 
         // Parse milestone number
         let milestone_number = issue_node

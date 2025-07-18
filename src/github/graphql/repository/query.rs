@@ -44,6 +44,22 @@ pub fn repository_query() -> String {
                         avatarUrl
                     }
                 }
+                releases(first: 100, orderBy: {field: CREATED_AT, direction: DESC}) {
+                    nodes {
+                        name
+                        tagName
+                        description
+                        createdAt
+                        publishedAt
+                        isPrerelease
+                        isDraft
+                        author {
+                            login
+                            name
+                        }
+                        url
+                    }
+                }
             }
         }
     "#

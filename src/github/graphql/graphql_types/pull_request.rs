@@ -9,10 +9,6 @@ use crate::github::graphql::graphql_types::{LabelsConnection, MilestoneNode};
 use crate::types::label::Label;
 use crate::types::{IssueOrPullrequestId, PullRequest, PullRequestId, PullRequestState, User};
 
-// Constants for GraphQL API values
-const STATE_OPEN: &str = "OPEN";
-const STATE_CLOSED: &str = "CLOSED";
-const STATE_MERGED: &str = "MERGED";
 const MERGEABLE_VALUE: &str = "MERGEABLE";
 const CONFLICTING_VALUE: &str = "CONFLICTING";
 
@@ -134,13 +130,11 @@ impl TryFrom<(PullRequestNode, crate::types::RepositoryId)> for PullRequest {
             .author
             .map(|author| User::from(author.login));
 
-        // Parse state
-        let state = match pull_request_node.state.as_str() {
-            STATE_OPEN => PullRequestState::Open,
-            STATE_CLOSED => PullRequestState::Closed,
-            STATE_MERGED => PullRequestState::Merged,
-            _ => PullRequestState::Closed,
-        };
+        // Parse state using strum
+        let state = pull_request_node
+            .state
+            .parse::<PullRequestState>()
+            .unwrap_or(PullRequestState::Closed);
 
         // Parse milestone number
         let milestone_number = pull_request_node

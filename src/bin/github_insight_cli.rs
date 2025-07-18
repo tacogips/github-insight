@@ -173,10 +173,16 @@ enum Commands {
         /// GitHub pull request URLs to fetch detailed information from - supports multiple URLs for batch processing
         urls: Vec<String>,
     },
-    /// Fetch detailed repository information including metadata, statistics, and configuration by URLs
+    /// Fetch detailed repository information including metadata, statistics, releases (with configurable limit), and configuration by URLs
     GetRepositories {
         /// GitHub repository URLs to fetch detailed information from - supports multiple URLs for batch processing
         urls: Vec<String>,
+        /// Optional limit for number of releases to show per repository (default: 10)
+        #[arg(long)]
+        showing_release_limit: Option<usize>,
+        /// Optional limit for number of milestones to show per repository (default: 10)
+        #[arg(long)]
+        showing_milestone_limit: Option<usize>,
     },
     /// Fetch detailed project information including metadata, description, and timestamps by URLs
     GetProjects {
@@ -377,7 +383,11 @@ async fn main() -> Result<()> {
             )
             .await?;
         }
-        Commands::GetRepositories { urls } => {
+        Commands::GetRepositories {
+            urls,
+            showing_release_limit,
+            showing_milestone_limit,
+        } => {
             let repository_urls: Vec<RepositoryUrl> =
                 urls.iter().map(|url| RepositoryUrl(url.clone())).collect();
             handle_get_repositories_command(
@@ -386,6 +396,8 @@ async fn main() -> Result<()> {
                 &github_token,
                 &timezone,
                 cli.request_timeout.map(Duration::from_secs),
+                showing_release_limit,
+                showing_milestone_limit,
             )
             .await?;
         }
@@ -700,6 +712,8 @@ async fn handle_get_repositories_command(
     github_token: &Option<String>,
     timezone: &Option<TimezoneOffset>,
     request_timeout: Option<Duration>,
+    showing_release_limit: Option<usize>,
+    showing_milestone_limit: Option<usize>,
 ) -> Result<()> {
     let github_client = GitHubClient::new(github_token.clone(), request_timeout)
         .map_err(|e| anyhow::anyhow!("Failed to create GitHub client: {}", e))?;
@@ -719,8 +733,12 @@ async fn handle_get_repositories_command(
                 println!("No repositories found for the provided URLs.");
             } else {
                 for repo in repositories {
-                    let markdown_content =
-                        repository_body_markdown_with_timezone(&repo, timezone.as_ref());
+                    let markdown_content = repository_body_markdown_with_timezone(
+                        &repo,
+                        timezone.as_ref(),
+                        showing_release_limit,
+                        showing_milestone_limit,
+                    );
                     println!("{}", markdown_content.0);
                 }
             }
