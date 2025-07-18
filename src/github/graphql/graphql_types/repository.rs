@@ -58,6 +58,7 @@ pub struct RepositoryNode {
     pub owner: RepositoryOwner,
     #[serde(rename = "mentionableUsers")]
     pub mentionable_users: MentionableUsersConnection,
+    pub releases: ReleasesConnection,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,4 +102,33 @@ pub struct MentionableUserNode {
 pub struct LabelNode {
     pub name: String,
     pub color: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReleasesConnection {
+    pub nodes: Vec<ReleaseNode>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReleaseNode {
+    pub name: Option<String>,
+    #[serde(rename = "tagName")]
+    pub tag_name: String,
+    pub description: Option<String>,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    #[serde(rename = "publishedAt")]
+    pub published_at: Option<String>,
+    #[serde(rename = "isPrerelease")]
+    pub is_prerelease: bool,
+    #[serde(rename = "isDraft")]
+    pub is_draft: bool,
+    pub author: Option<ReleaseAuthor>,
+    pub url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReleaseAuthor {
+    pub login: String,
+    pub name: Option<String>,
 }

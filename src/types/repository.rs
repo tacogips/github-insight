@@ -170,7 +170,7 @@ impl std::fmt::Display for MilestoneId {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MilestoneName(pub String);
 
 impl std::fmt::Display for MilestoneName {
@@ -191,6 +191,61 @@ pub struct RepositoryMilestone {
     pub milestone_name: MilestoneName,
 
     pub due_date: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReleaseId(pub String);
+
+impl std::fmt::Display for ReleaseId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReleaseName(pub String);
+
+impl std::fmt::Display for ReleaseName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TagName(pub String);
+
+impl std::fmt::Display for TagName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// Repository release information from GitHub
+///
+/// This struct represents a GitHub release with all its metadata,
+/// including version information, timestamps, and author details.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RepositoryRelease {
+    /// The release ID (derived from tag name if name is not available)
+    pub release_id: ReleaseId,
+    /// The human-readable release name
+    pub name: ReleaseName,
+    /// The git tag name associated with this release
+    pub tag_name: TagName,
+    /// The release description/body
+    pub description: Option<String>,
+    /// When the release was created
+    pub created_at: DateTime<Utc>,
+    /// When the release was published (may be None for drafts)
+    pub published_at: Option<DateTime<Utc>>,
+    /// Whether this is a pre-release
+    pub is_prerelease: bool,
+    /// Whether this is a draft
+    pub is_draft: bool,
+    /// The author of the release
+    pub author: Option<User>,
+    /// The URL to the release page
+    pub url: String,
 }
 
 /// A strongly-typed repository identifier for GitHub repositories
@@ -295,6 +350,7 @@ pub struct GithubRepository {
     pub default_branch: Option<Branch>,
     pub labels: Vec<Label>,
     pub users: Vec<User>,
+    pub releases: Vec<RepositoryRelease>,
 }
 
 impl GithubRepository {
@@ -310,6 +366,7 @@ impl GithubRepository {
         default_branch: Option<Branch>,
         labels: Vec<Label>,
         users: Vec<User>,
+        releases: Vec<RepositoryRelease>,
     ) -> Self {
         Self {
             git_repository_id,
@@ -321,6 +378,7 @@ impl GithubRepository {
             default_branch,
             labels,
             users,
+            releases,
         }
     }
 
@@ -391,6 +449,47 @@ impl TryFrom<RepositoryNode> for GithubRepository {
             .map(|user_node| User::new(user_node.login))
             .collect();
 
+        // Convert releases
+        let releases = node
+            .releases
+            .nodes
+            .into_iter()
+            .map(|release_node| {
+                let created_at = chrono::DateTime::parse_from_rfc3339(&release_node.created_at)
+                    .context("Failed to parse release created_at timestamp")
+                    .unwrap_or_else(|_| Utc::now().into())
+                    .with_timezone(&Utc);
+
+                let published_at = release_node
+                    .published_at
+                    .and_then(|date_str| chrono::DateTime::parse_from_rfc3339(&date_str).ok())
+                    .map(|date| date.with_timezone(&Utc));
+
+                let release_name = release_node
+                    .name
+                    .unwrap_or_else(|| release_node.tag_name.clone());
+
+                let release_id = ReleaseId(release_name.clone());
+
+                let author = release_node
+                    .author
+                    .map(|author_node| User::new(author_node.login));
+
+                RepositoryRelease {
+                    release_id,
+                    name: ReleaseName(release_name),
+                    tag_name: TagName(release_node.tag_name),
+                    description: release_node.description,
+                    created_at,
+                    published_at,
+                    is_prerelease: release_node.is_prerelease,
+                    is_draft: release_node.is_draft,
+                    author,
+                    url: release_node.url,
+                }
+            })
+            .collect();
+
         Ok(GithubRepository::new(
             repository_id,
             node.description,
@@ -401,6 +500,7 @@ impl TryFrom<RepositoryNode> for GithubRepository {
             default_branch,
             labels,
             users,
+            releases,
         ))
     }
 }

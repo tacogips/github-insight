@@ -377,7 +377,7 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Get repository details by URLs. Returns detailed repository information formatted as markdown with comprehensive metadata including URL, description, default branch, mentionable users, labels, milestones, and timestamps."
+        description = "Get repository details by URLs. Returns detailed repository information formatted as markdown with comprehensive metadata including URL, description, default branch, mentionable users, labels, milestones, releases (with configurable limit), and timestamps."
     )]
     async fn get_repository_details(
         &self,
@@ -386,6 +386,18 @@ impl GitInsightTools {
             description = "Optional repository URLs to fetch. If not provided, fetches all repositories from the profile. Examples: ['https://github.com/rust-lang/rust', 'https://github.com/tokio-rs/tokio']"
         )]
         repository_urls: Option<Vec<String>>,
+        #[tool(param)]
+        #[schemars(
+            description = "Optional limit for number of releases to show per repository (default: 10). Examples: 5, 20"
+        )]
+        #[schemars(default)]
+        showing_release_limit: Option<usize>,
+        #[tool(param)]
+        #[schemars(
+            description = "Optional limit for number of milestones to show per repository (default: 10). Examples: 5, 20"
+        )]
+        #[schemars(default)]
+        showing_milestone_limit: Option<usize>,
     ) -> Result<CallToolResult, McpError> {
         let github_client = GitHubClient::new(self.github_token.clone(), None).map_err(|e| {
             McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
@@ -425,8 +437,12 @@ impl GitInsightTools {
         let mut content_vec = Vec::new();
 
         for repository in repositories {
-            let formatted =
-                repository_body_markdown_with_timezone(&repository, self.timezone.as_ref());
+            let formatted = repository_body_markdown_with_timezone(
+                &repository,
+                self.timezone.as_ref(),
+                showing_release_limit,
+                showing_milestone_limit,
+            );
             content_vec.push(Content::text(formatted.0));
         }
 
@@ -686,7 +702,7 @@ Examples:
 ```
 
 ### 5. get_repository_details
-Get repository details by URLs. Returns detailed repository information formatted as markdown array with comprehensive metadata including description, statistics, and configuration details.
+Get repository details by URLs. Returns detailed repository information formatted as markdown array with comprehensive metadata including description, statistics, and configuration details. Releases section can be limited using the showing_release_limit parameter.
 
 Examples:
 ```json
@@ -698,6 +714,9 @@ Examples:
 
 // Get multiple repository details
 {{"name": "get_repository_details", "arguments": {{"repository_urls": ["https://github.com/rust-lang/rust", "https://github.com/tokio-rs/tokio"]}}}}
+
+// Get repository details with custom release limit
+{{"name": "get_repository_details", "arguments": {{"repository_urls": ["https://github.com/rust-lang/rust"], "showing_release_limit": 5}}}}
 ```
 
 ### 6. search_across_repositories
