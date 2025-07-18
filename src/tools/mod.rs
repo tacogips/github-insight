@@ -505,7 +505,7 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Search across all registered repositories for issues, PRs, and projects. Comprehensive search across multiple resource types. Use get_issues_details and get_pull_request_details functions to get more detailed information. 
+        description = "Search across all registered repositories for issues, PRs, and projects. **REQUIRED: Must provide a 'query' parameter** - this is the search text that specifies what to search for. Comprehensive search across multiple resource types. Use get_issues_details and get_pull_request_details functions to get more detailed information. 
 
 Pagination with cursors:
 - First call: omit cursors parameter to get initial results
@@ -517,7 +517,7 @@ Pagination with cursors:
         &self,
         #[tool(param)]
         #[schemars(
-            description = "Search query text (required). Supports GitHub search syntax. Examples: 'is:pr state:open', 'is:issue label:bug', 'authentication error', 'head:feature-branch', 'is:pr author:username', 'is:issue assignee:username', 'created:2024-01-01..2024-12-31'. Note: Any repo:owner/name specifications in the query will be overridden when searching specific repositories."
+            description = "**REQUIRED**: Search query text - this parameter is mandatory and frequently forgotten! Supports GitHub search syntax. Examples: 'is:pr state:open', 'is:issue label:bug', 'authentication error', 'head:feature-branch', 'is:pr author:username', 'is:issue assignee:username', 'created:2024-01-01..2024-12-31'. Note: Any repo:owner/name specifications in the query will be overridden when searching specific repositories."
         )]
         query: String,
         #[tool(param)]

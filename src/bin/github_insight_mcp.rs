@@ -19,7 +19,52 @@ fn parse_timezone_or_default(timezone: Option<String>) -> Option<String> {
     about = "GitHub Insight MCP Server - Model Context Protocol server for comprehensive GitHub data analysis and management"
 )]
 #[command(
-    long_about = "GitHub Insight MCP Server provides comprehensive access to GitHub repositories, issues, pull requests, and projects through the Model Context Protocol. Features include multi-repository search with GitHub query syntax support, detailed issue and pull request fetching with comments and metadata, advanced project resource management with pagination support, and flexible timezone customization. Supports both stdio and HTTP/SSE interfaces for seamless integration with MCP clients like Claude Desktop."
+    long_about = "GitHub Insight MCP Server provides comprehensive access to GitHub repositories, issues, pull requests, and projects through the Model Context Protocol. Features include multi-repository search with GitHub query syntax support, detailed issue and pull request fetching with comments and metadata, advanced project resource management with pagination support, and flexible timezone customization. Supports both stdio and HTTP/SSE interfaces for seamless integration with MCP clients like Claude Desktop.
+
+MCP INITIALIZATION PROTOCOL:
+The Model Context Protocol (MCP) follows a JSON-RPC 2.0 based initialization sequence:
+
+1. CLIENT INITIALIZATION REQUEST:
+   Client sends 'initialize' request with:
+   - protocolVersion: \"2024-11-05\" (current MCP version)
+   - capabilities: {roots: {listChanged: false}, sampling: {}}
+   - clientInfo: {name: \"client-name\", version: \"1.0.0\"}
+
+2. SERVER INITIALIZATION RESPONSE:
+   Server responds with capabilities including:
+   - protocolVersion: \"2024-11-05\"
+   - capabilities: {
+       tools: {listChanged: false},
+       resources: {subscribe: false, listChanged: false},
+       prompts: {listChanged: false},
+       logging: {}
+     }
+   - serverInfo: {name: \"github-insight-mcp\", version: \"x.x.x\"}
+
+3. CLIENT INITIALIZED NOTIFICATION:
+   Client sends 'initialized' notification to complete handshake
+
+4. READY FOR TOOL CALLS:
+   Server is ready to handle tool calls like:
+   - search_across_repositories: Search issues/PRs across repositories
+   - get_issues_details: Get detailed issue information
+   - get_pull_request_details: Get detailed PR information
+   - get_project_resources: Get project resources with pagination
+   - get_repository_details: Get repository metadata
+   
+   Detailed usage information for all available tools is provided in the initialize response instructions.
+
+STDIO MODE USAGE:
+1. Start server: github-insight-mcp stdio
+2. Send JSON-RPC requests via stdin
+3. Receive JSON-RPC responses via stdout
+4. All communication follows MCP protocol specification
+
+HTTP/SSE MODE USAGE:
+1. Start server: github-insight-mcp http --address 0.0.0.0:8080
+2. Connect to http://localhost:8080/sse for Server-Sent Events
+3. Send MCP requests via HTTP POST to /mcp
+4. Receive responses via SSE stream"
 )]
 #[command(propagate_version = true)]
 #[command(disable_version_flag = true)]
