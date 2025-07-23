@@ -9,7 +9,8 @@ use uuid::Uuid;
 
 use github_insight::services::{ProfileService, ProfileServiceError};
 use github_insight::types::{
-    profile::ProfileName,
+    Branch,
+    profile::{GroupName, ProfileName, RepositoryBranchUnit},
     project::{ProjectId, ProjectNumber, ProjectType},
     repository::{Owner, RepositoryId, RepositoryName},
 };
@@ -39,6 +40,20 @@ fn create_test_project(owner: &str, number: u64) -> ProjectId {
         number: ProjectNumber(number),
         project_type: ProjectType::User, // Default to User for test projects
     }
+}
+
+/// Helper function to create a test repository branch unit
+fn create_test_repository_branch_unit(
+    owner: &str,
+    repo: &str,
+    branch: &str,
+) -> RepositoryBranchUnit {
+    let repository_id = RepositoryId {
+        owner: Owner::from(owner),
+        repository_name: RepositoryName::from(repo),
+    };
+    let branch = Branch::new(branch);
+    RepositoryBranchUnit::new(repository_id, branch)
 }
 
 #[test]
@@ -635,5 +650,483 @@ fn test_concurrent_operations_race_condition_prevention() {
         // Each service operates on its own data directory
         // This ensures no interference between concurrent tests
         assert!(service.list_profiles().len() == 1); // Only default profile
+    }
+}
+
+// =============================================================================
+// Repository Branch Group Tests
+// =============================================================================
+
+#[test]
+fn test_register_repository_branch_group_with_name() {
+    let temp_dir = create_test_temp_dir();
+    let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+    let unit1 = create_test_repository_branch_unit("rust-lang", "rust", "main");
+    let unit2 = create_test_repository_branch_unit("tokio-rs", "tokio", "master");
+    let units = vec![unit1.clone(), unit2.clone()];
+
+    let group_name = service
+        .register_repository_branch_group(
+            &ProfileName::from("default"),
+            Some(GroupName::from("test-group")),
+            units,
+        )
+        .unwrap();
+
+    assert_eq!(group_name.value(), "test-group");
+
+    let groups = service
+        .list_repository_branch_groups(&ProfileName::from("default"))
+        .unwrap();
+    assert_eq!(groups.len(), 1);
+    assert_eq!(groups[0], group_name);
+
+    let group = service
+        .get_repository_branch_group(&ProfileName::from("default"), &group_name)
+        .unwrap();
+    assert_eq!(group.units.len(), 2);
+    assert!(group.units.contains(&unit1));
+    assert!(group.units.contains(&unit2));
+}
+
+#[test]
+fn test_register_repository_branch_group_auto_name() {
+    let temp_dir = create_test_temp_dir();
+    let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+    let unit = create_test_repository_branch_unit("rust-lang", "rust", "main");
+
+    let group_name = service
+        .register_repository_branch_group(
+            &ProfileName::from("default"),
+            None, // Auto-generate name
+            vec![unit],
+        )
+        .unwrap();
+
+    // Auto-generated name should follow yyyymmdd-hash format
+    assert!(group_name.value().len() > 8); // At minimum yyyymmdd format
+    assert!(group_name.value().contains('-')); // Should contain dash separator
+
+    let groups = service
+        .list_repository_branch_groups(&ProfileName::from("default"))
+        .unwrap();
+    assert_eq!(groups.len(), 1);
+    assert_eq!(groups[0], group_name);
+}
+
+#[test]
+fn test_register_repository_branch_group_already_exists() {
+    let temp_dir = create_test_temp_dir();
+    let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+    let unit = create_test_repository_branch_unit("rust-lang", "rust", "main");
+
+    // Register group first time
+    service
+        .register_repository_branch_group(
+            &ProfileName::from("default"),
+            Some(GroupName::from("duplicate-group")),
+            vec![unit.clone()],
+        )
+        .unwrap();
+
+    // Try to register same group name again
+    let result = service.register_repository_branch_group(
+        &ProfileName::from("default"),
+        Some(GroupName::from("duplicate-group")),
+        vec![unit],
+    );
+
+    assert!(result.is_err());
+    assert!(matches!(
+        result.unwrap_err(),
+        ProfileServiceError::GroupAlreadyExists(_)
+    ));
+}
+
+#[test]
+fn test_unregister_repository_branch_group() {
+    let temp_dir = create_test_temp_dir();
+    let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+    let unit1 = create_test_repository_branch_unit("rust-lang", "rust", "main");
+    let unit2 = create_test_repository_branch_unit("tokio-rs", "tokio", "master");
+    let units = vec![unit1.clone(), unit2.clone()];
+
+    let group_name = service
+        .register_repository_branch_group(
+            &ProfileName::from("default"),
+            Some(GroupName::from("removable-group")),
+            units,
+        )
+        .unwrap();
+
+    let removed_group = service
+        .unregister_repository_branch_group(&ProfileName::from("default"), &group_name)
+        .unwrap();
+
+    assert_eq!(removed_group.name, group_name);
+    assert_eq!(removed_group.units.len(), 2);
+    assert!(removed_group.units.contains(&unit1));
+    assert!(removed_group.units.contains(&unit2));
+
+    // Group should no longer exist
+    let groups = service
+        .list_repository_branch_groups(&ProfileName::from("default"))
+        .unwrap();
+    assert_eq!(groups.len(), 0);
+}
+
+#[test]
+fn test_unregister_repository_branch_group_not_found() {
+    let temp_dir = create_test_temp_dir();
+    let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+    let result = service.unregister_repository_branch_group(
+        &ProfileName::from("default"),
+        &GroupName::from("nonexistent-group"),
+    );
+
+    assert!(result.is_err());
+    assert!(matches!(
+        result.unwrap_err(),
+        ProfileServiceError::GroupNotFound(_)
+    ));
+}
+
+#[test]
+fn test_add_unit_to_group() {
+    let temp_dir = create_test_temp_dir();
+    let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+    let initial_unit = create_test_repository_branch_unit("rust-lang", "rust", "main");
+    let additional_unit = create_test_repository_branch_unit("tokio-rs", "tokio", "master");
+
+    let group_name = service
+        .register_repository_branch_group(
+            &ProfileName::from("default"),
+            Some(GroupName::from("expandable-group")),
+            vec![initial_unit.clone()],
+        )
+        .unwrap();
+
+    // Add unit to group
+    service
+        .add_unit_to_group(
+            &ProfileName::from("default"),
+            &group_name,
+            additional_unit.clone(),
+        )
+        .unwrap();
+
+    let group = service
+        .get_repository_branch_group(&ProfileName::from("default"), &group_name)
+        .unwrap();
+
+    assert_eq!(group.units.len(), 2);
+    assert!(group.units.contains(&initial_unit));
+    assert!(group.units.contains(&additional_unit));
+}
+
+#[test]
+fn test_add_unit_to_group_already_exists() {
+    let temp_dir = create_test_temp_dir();
+    let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+    let unit = create_test_repository_branch_unit("rust-lang", "rust", "main");
+
+    let group_name = service
+        .register_repository_branch_group(
+            &ProfileName::from("default"),
+            Some(GroupName::from("duplicate-unit-group")),
+            vec![unit.clone()],
+        )
+        .unwrap();
+
+    // Try to add same unit again
+    let result = service.add_unit_to_group(&ProfileName::from("default"), &group_name, unit);
+
+    assert!(result.is_err());
+    assert!(matches!(
+        result.unwrap_err(),
+        ProfileServiceError::UnitAlreadyExists(_)
+    ));
+}
+
+#[test]
+fn test_remove_unit_from_group() {
+    let temp_dir = create_test_temp_dir();
+    let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+    let unit1 = create_test_repository_branch_unit("rust-lang", "rust", "main");
+    let unit2 = create_test_repository_branch_unit("tokio-rs", "tokio", "master");
+    let unit3 = create_test_repository_branch_unit("serde-rs", "serde", "main");
+
+    let group_name = service
+        .register_repository_branch_group(
+            &ProfileName::from("default"),
+            Some(GroupName::from("reducible-group")),
+            vec![unit1.clone(), unit2.clone(), unit3.clone()],
+        )
+        .unwrap();
+
+    // Remove unit from group
+    service
+        .remove_unit_from_group(&ProfileName::from("default"), &group_name, &unit2)
+        .unwrap();
+
+    let group = service
+        .get_repository_branch_group(&ProfileName::from("default"), &group_name)
+        .unwrap();
+
+    assert_eq!(group.units.len(), 2);
+    assert!(group.units.contains(&unit1));
+    assert!(group.units.contains(&unit3));
+    assert!(!group.units.contains(&unit2));
+}
+
+#[test]
+fn test_remove_unit_from_group_not_found() {
+    let temp_dir = create_test_temp_dir();
+    let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+    let existing_unit = create_test_repository_branch_unit("rust-lang", "rust", "main");
+    let nonexistent_unit = create_test_repository_branch_unit("tokio-rs", "tokio", "master");
+
+    let group_name = service
+        .register_repository_branch_group(
+            &ProfileName::from("default"),
+            Some(GroupName::from("single-unit-group")),
+            vec![existing_unit],
+        )
+        .unwrap();
+
+    // Try to remove unit that doesn't exist in group
+    let result = service.remove_unit_from_group(
+        &ProfileName::from("default"),
+        &group_name,
+        &nonexistent_unit,
+    );
+
+    assert!(result.is_err());
+    assert!(matches!(
+        result.unwrap_err(),
+        ProfileServiceError::UnitNotFound(_)
+    ));
+}
+
+#[test]
+fn test_rename_repository_branch_group() {
+    let temp_dir = create_test_temp_dir();
+    let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+    let unit = create_test_repository_branch_unit("rust-lang", "rust", "main");
+
+    let original_name = service
+        .register_repository_branch_group(
+            &ProfileName::from("default"),
+            Some(GroupName::from("original-name")),
+            vec![unit.clone()],
+        )
+        .unwrap();
+
+    let new_name = GroupName::from("renamed-group");
+
+    // Rename the group
+    service
+        .rename_repository_branch_group(
+            &ProfileName::from("default"),
+            &original_name,
+            new_name.clone(),
+        )
+        .unwrap();
+
+    // Original name should not exist
+    let result = service.get_repository_branch_group(&ProfileName::from("default"), &original_name);
+    assert!(result.is_err());
+    assert!(matches!(
+        result.unwrap_err(),
+        ProfileServiceError::GroupNotFound(_)
+    ));
+
+    // New name should exist with same content
+    let group = service
+        .get_repository_branch_group(&ProfileName::from("default"), &new_name)
+        .unwrap();
+    assert_eq!(group.name, new_name);
+    assert_eq!(group.units.len(), 1);
+    assert!(group.units.contains(&unit));
+}
+
+#[test]
+fn test_list_repository_branch_groups_empty() {
+    let temp_dir = create_test_temp_dir();
+    let service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+    let groups = service
+        .list_repository_branch_groups(&ProfileName::from("default"))
+        .unwrap();
+
+    assert_eq!(groups.len(), 0);
+}
+
+#[test]
+fn test_list_repository_branch_groups_multiple() {
+    let temp_dir = create_test_temp_dir();
+    let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+    let unit1 = create_test_repository_branch_unit("rust-lang", "rust", "main");
+    let unit2 = create_test_repository_branch_unit("tokio-rs", "tokio", "master");
+
+    let group1_name = service
+        .register_repository_branch_group(
+            &ProfileName::from("default"),
+            Some(GroupName::from("group1")),
+            vec![unit1],
+        )
+        .unwrap();
+
+    let group2_name = service
+        .register_repository_branch_group(
+            &ProfileName::from("default"),
+            Some(GroupName::from("group2")),
+            vec![unit2],
+        )
+        .unwrap();
+
+    let groups = service
+        .list_repository_branch_groups(&ProfileName::from("default"))
+        .unwrap();
+
+    assert_eq!(groups.len(), 2);
+    assert!(groups.contains(&group1_name));
+    assert!(groups.contains(&group2_name));
+}
+
+#[test]
+fn test_remove_groups_older_than() {
+    let temp_dir = create_test_temp_dir();
+    let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+    let unit = create_test_repository_branch_unit("rust-lang", "rust", "main");
+
+    let group_name = service
+        .register_repository_branch_group(
+            &ProfileName::from("default"),
+            Some(GroupName::from("cleanup-test-group")),
+            vec![unit],
+        )
+        .unwrap();
+
+    // Cleanup groups older than 1 day (should not remove the newly created group)
+    let removed_groups = service
+        .remove_groups_older_than(&ProfileName::from("default"), 1)
+        .unwrap();
+    assert_eq!(removed_groups.len(), 0);
+
+    // Cleanup groups older than 0 days (should remove all groups)
+    let removed_groups = service
+        .remove_groups_older_than(&ProfileName::from("default"), 0)
+        .unwrap();
+    assert_eq!(removed_groups.len(), 1);
+    assert_eq!(removed_groups[0], group_name);
+
+    // Group should no longer exist
+    let result = service.get_repository_branch_group(&ProfileName::from("default"), &group_name);
+    assert!(result.is_err());
+    assert!(matches!(
+        result.unwrap_err(),
+        ProfileServiceError::GroupNotFound(_)
+    ));
+}
+
+#[test]
+fn test_repository_branch_group_profile_isolation() {
+    let temp_dir = create_test_temp_dir();
+    let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+    let unit1 = create_test_repository_branch_unit("rust-lang", "rust", "main");
+    let unit2 = create_test_repository_branch_unit("tokio-rs", "tokio", "master");
+
+    // Create groups in different profiles
+    let profile1_group = service
+        .register_repository_branch_group(
+            &ProfileName::from("profile1"),
+            Some(GroupName::from("profile1-group")),
+            vec![unit1],
+        )
+        .unwrap();
+
+    let profile2_group = service
+        .register_repository_branch_group(
+            &ProfileName::from("profile2"),
+            Some(GroupName::from("profile2-group")),
+            vec![unit2],
+        )
+        .unwrap();
+
+    // Verify profile1 groups
+    let profile1_groups = service
+        .list_repository_branch_groups(&ProfileName::from("profile1"))
+        .unwrap();
+    assert_eq!(profile1_groups.len(), 1);
+    assert_eq!(profile1_groups[0], profile1_group);
+
+    // Verify profile2 groups
+    let profile2_groups = service
+        .list_repository_branch_groups(&ProfileName::from("profile2"))
+        .unwrap();
+    assert_eq!(profile2_groups.len(), 1);
+    assert_eq!(profile2_groups[0], profile2_group);
+
+    // Cross-profile access should fail
+    let result =
+        service.get_repository_branch_group(&ProfileName::from("profile1"), &profile2_group);
+    assert!(result.is_err());
+    assert!(matches!(
+        result.unwrap_err(),
+        ProfileServiceError::GroupNotFound(_)
+    ));
+}
+
+#[test]
+fn test_repository_branch_group_persistence_across_instances() {
+    let temp_dir = create_test_temp_dir();
+    let data_dir = temp_dir.path().to_path_buf();
+
+    let unit1 = create_test_repository_branch_unit("rust-lang", "rust", "main");
+    let unit2 = create_test_repository_branch_unit("tokio-rs", "tokio", "master");
+    let units = vec![unit1.clone(), unit2.clone()];
+
+    let group_name = {
+        // Create first service instance and add group
+        let mut service = ProfileService::new(data_dir.clone()).unwrap();
+        service
+            .register_repository_branch_group(
+                &ProfileName::from("persistent-profile"),
+                Some(GroupName::from("persisted-group")),
+                units,
+            )
+            .unwrap()
+    };
+
+    // Create second service instance and verify group persists
+    {
+        let service = ProfileService::new(data_dir.clone()).unwrap();
+
+        let groups = service
+            .list_repository_branch_groups(&ProfileName::from("persistent-profile"))
+            .unwrap();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0], group_name);
+
+        let group = service
+            .get_repository_branch_group(&ProfileName::from("persistent-profile"), &group_name)
+            .unwrap();
+        assert_eq!(group.units.len(), 2);
+        assert!(group.units.contains(&unit1));
+        assert!(group.units.contains(&unit2));
     }
 }

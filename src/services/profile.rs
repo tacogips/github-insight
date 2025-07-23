@@ -7,7 +7,10 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::types::{ProfileInfo, ProfileName, ProjectId, RepositoryId};
+use crate::types::{
+    GroupName, ProfileInfo, ProfileName, ProjectId, RepositoryBranchGroup, RepositoryBranchUnit,
+    RepositoryId,
+};
 
 /// Profile management service for handling repository and project organization
 #[derive(Debug, Clone)]
@@ -33,6 +36,16 @@ pub enum ProfileServiceError {
     ProjectAlreadyExists(String),
     /// Project not found in profile
     ProjectNotFound(String),
+    /// Repository branch group already exists
+    GroupAlreadyExists(String),
+    /// Repository branch group not found
+    GroupNotFound(String),
+    /// Repository branch unit already exists in group
+    UnitAlreadyExists(String),
+    /// Repository branch unit not found in group
+    UnitNotFound(String),
+    /// Invalid group name
+    InvalidGroupName(String),
     /// Invalid profile name
     InvalidProfileName(String),
     /// IO error during persistence
@@ -58,6 +71,23 @@ impl std::fmt::Display for ProfileServiceError {
             Self::ProjectNotFound(project) => {
                 write!(f, "Project '{}' not found in profile", project)
             }
+            Self::GroupAlreadyExists(group) => {
+                write!(f, "Repository branch group '{}' already exists", group)
+            }
+            Self::GroupNotFound(group) => {
+                write!(f, "Repository branch group '{}' not found", group)
+            }
+            Self::UnitAlreadyExists(unit) => {
+                write!(
+                    f,
+                    "Repository branch unit '{}' already exists in group",
+                    unit
+                )
+            }
+            Self::UnitNotFound(unit) => {
+                write!(f, "Repository branch unit '{}' not found in group", unit)
+            }
+            Self::InvalidGroupName(name) => write!(f, "Invalid group name: '{}'", name),
             Self::InvalidProfileName(name) => write!(f, "Invalid profile name: '{}'", name),
             Self::IoError(msg) => write!(f, "IO error: {}", msg),
             Self::SerializationError(msg) => write!(f, "Serialization error: {}", msg),
@@ -243,6 +273,202 @@ impl ProfileService {
             .ok_or_else(|| ProfileServiceError::ProfileNotFound(profile_name.to_string()))?;
 
         Ok(profile.projects().clone())
+    }
+
+    /// Register a repository branch group to a profile
+    pub fn register_repository_branch_group(
+        &mut self,
+        profile_name: &ProfileName,
+        group_name: Option<GroupName>,
+        units: Vec<RepositoryBranchUnit>,
+    ) -> Result<GroupName, ProfileServiceError> {
+        // Get or create profile
+        let profile = self.get_or_create_profile(profile_name)?;
+
+        // Create the group
+        let group = RepositoryBranchGroup::new(group_name, units);
+        let final_group_name = group.name.clone();
+
+        // Check if group already exists
+        if profile.has_repository_branch_group(&final_group_name) {
+            return Err(ProfileServiceError::GroupAlreadyExists(
+                final_group_name.to_string(),
+            ));
+        }
+
+        // Add group to profile
+        profile.add_repository_branch_group(group);
+
+        // Update profile info and persist
+        self.update_profile_timestamp(profile_name)?;
+
+        Ok(final_group_name)
+    }
+
+    /// Unregister a repository branch group from a profile
+    pub fn unregister_repository_branch_group(
+        &mut self,
+        profile_name: &ProfileName,
+        group_name: &GroupName,
+    ) -> Result<RepositoryBranchGroup, ProfileServiceError> {
+        let group = {
+            let profile = self
+                .profiles
+                .get_mut(profile_name)
+                .ok_or_else(|| ProfileServiceError::ProfileNotFound(profile_name.to_string()))?;
+
+            profile
+                .remove_repository_branch_group(group_name)
+                .ok_or_else(|| ProfileServiceError::GroupNotFound(group_name.to_string()))?
+        };
+
+        // Update profile info and persist
+        self.update_profile_timestamp(profile_name)?;
+
+        Ok(group)
+    }
+
+    /// Add a repository branch unit to an existing group
+    pub fn add_unit_to_group(
+        &mut self,
+        profile_name: &ProfileName,
+        group_name: &GroupName,
+        unit: RepositoryBranchUnit,
+    ) -> Result<(), ProfileServiceError> {
+        {
+            let profile = self
+                .profiles
+                .get_mut(profile_name)
+                .ok_or_else(|| ProfileServiceError::ProfileNotFound(profile_name.to_string()))?;
+
+            let group = profile
+                .get_repository_branch_group_mut(group_name)
+                .ok_or_else(|| ProfileServiceError::GroupNotFound(group_name.to_string()))?;
+
+            // Check if unit already exists
+            if group.units.contains(&unit) {
+                return Err(ProfileServiceError::UnitAlreadyExists(unit.to_string()));
+            }
+
+            group.add_unit(unit);
+        }
+
+        // Update profile info and persist
+        self.update_profile_timestamp(profile_name)?;
+
+        Ok(())
+    }
+
+    /// Remove a repository branch unit from a group
+    pub fn remove_unit_from_group(
+        &mut self,
+        profile_name: &ProfileName,
+        group_name: &GroupName,
+        unit: &RepositoryBranchUnit,
+    ) -> Result<(), ProfileServiceError> {
+        {
+            let profile = self
+                .profiles
+                .get_mut(profile_name)
+                .ok_or_else(|| ProfileServiceError::ProfileNotFound(profile_name.to_string()))?;
+
+            let group = profile
+                .get_repository_branch_group_mut(group_name)
+                .ok_or_else(|| ProfileServiceError::GroupNotFound(group_name.to_string()))?;
+
+            // Check if unit exists
+            if !group.units.contains(unit) {
+                return Err(ProfileServiceError::UnitNotFound(unit.to_string()));
+            }
+
+            group.remove_unit(unit);
+        }
+
+        // Update profile info and persist
+        self.update_profile_timestamp(profile_name)?;
+
+        Ok(())
+    }
+
+    /// Rename a repository branch group
+    pub fn rename_repository_branch_group(
+        &mut self,
+        profile_name: &ProfileName,
+        old_name: &GroupName,
+        new_name: GroupName,
+    ) -> Result<(), ProfileServiceError> {
+        {
+            let profile = self
+                .profiles
+                .get_mut(profile_name)
+                .ok_or_else(|| ProfileServiceError::ProfileNotFound(profile_name.to_string()))?;
+
+            profile
+                .rename_repository_branch_group(old_name, new_name)
+                .map_err(|e| ProfileServiceError::InvalidGroupName(e))?;
+        }
+
+        // Update profile info and persist
+        self.update_profile_timestamp(profile_name)?;
+
+        Ok(())
+    }
+
+    /// List all repository branch groups in a profile
+    pub fn list_repository_branch_groups(
+        &self,
+        profile_name: &ProfileName,
+    ) -> Result<Vec<GroupName>, ProfileServiceError> {
+        let profile = self
+            .profiles
+            .get(profile_name)
+            .ok_or_else(|| ProfileServiceError::ProfileNotFound(profile_name.to_string()))?;
+
+        Ok(profile
+            .repository_branch_group_names()
+            .into_iter()
+            .cloned()
+            .collect())
+    }
+
+    /// Get a specific repository branch group
+    pub fn get_repository_branch_group(
+        &self,
+        profile_name: &ProfileName,
+        group_name: &GroupName,
+    ) -> Result<RepositoryBranchGroup, ProfileServiceError> {
+        let profile = self
+            .profiles
+            .get(profile_name)
+            .ok_or_else(|| ProfileServiceError::ProfileNotFound(profile_name.to_string()))?;
+
+        profile
+            .get_repository_branch_group(group_name)
+            .cloned()
+            .ok_or_else(|| ProfileServiceError::GroupNotFound(group_name.to_string()))
+    }
+
+    /// Remove repository branch groups older than N days
+    pub fn remove_groups_older_than(
+        &mut self,
+        profile_name: &ProfileName,
+        days: i64,
+    ) -> Result<Vec<GroupName>, ProfileServiceError> {
+        let removed_groups = {
+            let profile = self
+                .profiles
+                .get_mut(profile_name)
+                .ok_or_else(|| ProfileServiceError::ProfileNotFound(profile_name.to_string()))?;
+
+            profile.remove_groups_older_than(days)
+        };
+
+        if !removed_groups.is_empty() {
+            // Update profile info and persist
+            self.update_profile_timestamp(profile_name)?;
+        }
+
+        Ok(removed_groups)
     }
 
     /// List all profile names
@@ -480,5 +706,205 @@ mod tests {
             .unwrap();
         assert_eq!(repos.len(), 1);
         assert_eq!(repos[0], repo_id);
+    }
+
+    #[test]
+    fn test_repository_branch_group_registration() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+        let repo_id = RepositoryId {
+            owner: Owner::from("test-owner"),
+            repository_name: RepositoryName::from("test-repo"),
+        };
+        let branch = crate::types::Branch::new("main");
+        let unit = RepositoryBranchUnit::new(repo_id, branch);
+
+        let group_name = service
+            .register_repository_branch_group(
+                &ProfileName::from("default"),
+                Some(GroupName::from("test-group")),
+                vec![unit.clone()],
+            )
+            .unwrap();
+
+        assert_eq!(group_name.value(), "test-group");
+
+        let groups = service
+            .list_repository_branch_groups(&ProfileName::from("default"))
+            .unwrap();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0], group_name);
+
+        let group = service
+            .get_repository_branch_group(&ProfileName::from("default"), &group_name)
+            .unwrap();
+        assert_eq!(group.units.len(), 1);
+        assert_eq!(group.units[0], unit);
+    }
+
+    #[test]
+    fn test_repository_branch_group_auto_naming() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+        let repo_id = RepositoryId {
+            owner: Owner::from("test-owner"),
+            repository_name: RepositoryName::from("test-repo"),
+        };
+        let branch = crate::types::Branch::new("main");
+        let unit = RepositoryBranchUnit::new(repo_id, branch);
+
+        // Register group without providing name
+        let group_name = service
+            .register_repository_branch_group(&ProfileName::from("default"), None, vec![unit])
+            .unwrap();
+
+        // Should generate a name with yyyymmdd-hash format
+        assert!(group_name.value().len() > 8); // At minimum yyyymmdd format
+        assert!(group_name.value().contains('-')); // Should contain dash separator
+    }
+
+    #[test]
+    fn test_repository_branch_group_unit_management() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+        let repo_id1 = RepositoryId {
+            owner: Owner::from("test-owner1"),
+            repository_name: RepositoryName::from("test-repo1"),
+        };
+        let repo_id2 = RepositoryId {
+            owner: Owner::from("test-owner2"),
+            repository_name: RepositoryName::from("test-repo2"),
+        };
+
+        let unit1 = RepositoryBranchUnit::new(repo_id1, crate::types::Branch::new("main"));
+        let unit2 =
+            RepositoryBranchUnit::new(repo_id2.clone(), crate::types::Branch::new("develop"));
+        let unit3 = RepositoryBranchUnit::new(repo_id2, crate::types::Branch::new("feature"));
+
+        // Create group with initial unit
+        let group_name = service
+            .register_repository_branch_group(
+                &ProfileName::from("default"),
+                Some(GroupName::from("test-group")),
+                vec![unit1.clone()],
+            )
+            .unwrap();
+
+        // Add more units
+        service
+            .add_unit_to_group(&ProfileName::from("default"), &group_name, unit2.clone())
+            .unwrap();
+        service
+            .add_unit_to_group(&ProfileName::from("default"), &group_name, unit3.clone())
+            .unwrap();
+
+        let group = service
+            .get_repository_branch_group(&ProfileName::from("default"), &group_name)
+            .unwrap();
+        assert_eq!(group.units.len(), 3);
+
+        // Remove a unit
+        service
+            .remove_unit_from_group(&ProfileName::from("default"), &group_name, &unit2)
+            .unwrap();
+
+        let group = service
+            .get_repository_branch_group(&ProfileName::from("default"), &group_name)
+            .unwrap();
+        assert_eq!(group.units.len(), 2);
+        assert!(group.units.contains(&unit1));
+        assert!(group.units.contains(&unit3));
+        assert!(!group.units.contains(&unit2));
+    }
+
+    #[test]
+    fn test_repository_branch_group_rename() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+        let unit = RepositoryBranchUnit::new(
+            RepositoryId {
+                owner: Owner::from("test-owner"),
+                repository_name: RepositoryName::from("test-repo"),
+            },
+            crate::types::Branch::new("main"),
+        );
+
+        let original_name = service
+            .register_repository_branch_group(
+                &ProfileName::from("default"),
+                Some(GroupName::from("original-name")),
+                vec![unit],
+            )
+            .unwrap();
+
+        // Rename the group
+        let new_name = GroupName::from("new-name");
+        service
+            .rename_repository_branch_group(
+                &ProfileName::from("default"),
+                &original_name,
+                new_name.clone(),
+            )
+            .unwrap();
+
+        // Original name should not exist
+        assert!(
+            service
+                .get_repository_branch_group(&ProfileName::from("default"), &original_name)
+                .is_err()
+        );
+
+        // New name should exist
+        let group = service
+            .get_repository_branch_group(&ProfileName::from("default"), &new_name)
+            .unwrap();
+        assert_eq!(group.name, new_name);
+    }
+
+    #[test]
+    fn test_repository_branch_group_cleanup_by_date() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+        let unit = RepositoryBranchUnit::new(
+            RepositoryId {
+                owner: Owner::from("test-owner"),
+                repository_name: RepositoryName::from("test-repo"),
+            },
+            crate::types::Branch::new("main"),
+        );
+
+        // Create a group
+        let group_name = service
+            .register_repository_branch_group(
+                &ProfileName::from("default"),
+                Some(GroupName::from("test-group")),
+                vec![unit],
+            )
+            .unwrap();
+
+        // Cleanup groups older than 1 day (should not remove the newly created group)
+        let removed_groups = service
+            .remove_groups_older_than(&ProfileName::from("default"), 1)
+            .unwrap();
+        assert_eq!(removed_groups.len(), 0);
+
+        // Cleanup groups older than 0 days (should remove all groups)
+        let removed_groups = service
+            .remove_groups_older_than(&ProfileName::from("default"), 0)
+            .unwrap();
+        assert_eq!(removed_groups.len(), 1);
+        assert_eq!(removed_groups[0], group_name);
+
+        // Group should no longer exist
+        assert!(
+            service
+                .get_repository_branch_group(&ProfileName::from("default"), &group_name)
+                .is_err()
+        );
     }
 }

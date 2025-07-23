@@ -23,8 +23,8 @@ use github_insight::tools::functions;
 use github_insight::types::project::{ProjectNumber, ProjectUrl};
 use github_insight::types::repository::{Owner, RepositoryName};
 use github_insight::types::{
-    IssueUrl, OutputOption, ProfileName, ProjectId, PullRequestUrl, RepositoryId, RepositoryUrl,
-    SearchQuery,
+    GroupName, IssueUrl, OutputOption, ProfileName, ProjectId, PullRequestUrl,
+    RepositoryBranchUnit, RepositoryId, RepositoryUrl, SearchQuery,
 };
 
 #[derive(Parser)]
@@ -134,6 +134,77 @@ enum Commands {
     DeleteProfile {
         /// Profile name to delete permanently
         name: String,
+    },
+    /// Register a repository branch group to a profile for managing collections of repository-branch pairs
+    RegisterGroup {
+        /// Repository URLs and their branches in format "repo_url@branch" (e.g., "https://github.com/owner/repo@main")
+        units: Vec<String>,
+        /// Optional group name - if not provided, auto-generates with yyyymmdd-hash format
+        #[arg(short = 'n', long)]
+        group_name: Option<String>,
+        /// Profile name for organizing groups (default: "default")
+        #[arg(short, long, default_value = "default")]
+        profile: String,
+    },
+    /// Remove a repository branch group from a profile
+    UnregisterGroup {
+        /// Group name to remove
+        group_name: String,
+        /// Profile name containing the group (default: "default")
+        #[arg(short, long, default_value = "default")]
+        profile: String,
+    },
+    /// Add repository-branch units to an existing group
+    AddUnitsToGroup {
+        /// Group name to add units to
+        group_name: String,
+        /// Repository URLs and their branches in format "repo_url@branch"
+        units: Vec<String>,
+        /// Profile name containing the group (default: "default")
+        #[arg(short, long, default_value = "default")]
+        profile: String,
+    },
+    /// Remove repository-branch units from a group
+    RemoveUnitsFromGroup {
+        /// Group name to remove units from
+        group_name: String,
+        /// Repository URLs and their branches in format "repo_url@branch"
+        units: Vec<String>,
+        /// Profile name containing the group (default: "default")
+        #[arg(short, long, default_value = "default")]
+        profile: String,
+    },
+    /// Rename a repository branch group
+    RenameGroup {
+        /// Current group name
+        old_name: String,
+        /// New group name
+        new_name: String,
+        /// Profile name containing the group (default: "default")
+        #[arg(short, long, default_value = "default")]
+        profile: String,
+    },
+    /// List all repository branch groups in a profile
+    ListGroups {
+        /// Profile name to list groups from (default: "default")
+        #[arg(short, long, default_value = "default")]
+        profile: String,
+    },
+    /// Show details of a specific repository branch group
+    ShowGroup {
+        /// Group name to show details for
+        group_name: String,
+        /// Profile name containing the group (default: "default")
+        #[arg(short, long, default_value = "default")]
+        profile: String,
+    },
+    /// Remove repository branch groups older than N days
+    CleanupGroups {
+        /// Number of days - groups older than this will be removed
+        days: i64,
+        /// Profile name to clean up (default: "default")
+        #[arg(short, long, default_value = "default")]
+        profile: String,
     },
     /// Search for issues and pull requests across multiple repositories with advanced GitHub search syntax and pagination support
     Search {
@@ -324,6 +395,175 @@ async fn main() -> Result<()> {
                 .delete_profile(&ProfileName::from(name.as_str()))
                 .map_err(|e| anyhow::anyhow!("Failed to delete profile: {}", e))?;
             println!("Successfully deleted profile '{}'", name);
+        }
+        Commands::RegisterGroup {
+            units,
+            group_name,
+            profile,
+        } => {
+            let parsed_units = RepositoryBranchUnit::try_from_specifiers(&units)?;
+            let group_name_opt = group_name.map(GroupName::from);
+
+            let final_group_name = profile_service
+                .register_repository_branch_group(
+                    &ProfileName::from(profile.as_str()),
+                    group_name_opt,
+                    parsed_units,
+                )
+                .map_err(|e| anyhow::anyhow!("Failed to register group: {}", e))?;
+
+            println!(
+                "Successfully registered group '{}' to profile '{}' with {} units",
+                final_group_name,
+                profile,
+                units.len()
+            );
+        }
+        Commands::UnregisterGroup {
+            group_name,
+            profile,
+        } => {
+            let removed_group = profile_service
+                .unregister_repository_branch_group(
+                    &ProfileName::from(profile.as_str()),
+                    &GroupName::from(group_name.as_str()),
+                )
+                .map_err(|e| anyhow::anyhow!("Failed to unregister group: {}", e))?;
+
+            println!(
+                "Successfully unregistered group '{}' from profile '{}' (removed {} units)",
+                group_name,
+                profile,
+                removed_group.units.len()
+            );
+        }
+        Commands::AddUnitsToGroup {
+            group_name,
+            units,
+            profile,
+        } => {
+            let parsed_units = RepositoryBranchUnit::try_from_specifiers(&units)?;
+
+            for unit in parsed_units {
+                profile_service
+                    .add_unit_to_group(
+                        &ProfileName::from(profile.as_str()),
+                        &GroupName::from(group_name.as_str()),
+                        unit,
+                    )
+                    .map_err(|e| anyhow::anyhow!("Failed to add unit to group: {}", e))?;
+            }
+
+            println!(
+                "Successfully added {} units to group '{}' in profile '{}'",
+                units.len(),
+                group_name,
+                profile
+            );
+        }
+        Commands::RemoveUnitsFromGroup {
+            group_name,
+            units,
+            profile,
+        } => {
+            let parsed_units = RepositoryBranchUnit::try_from_specifiers(&units)?;
+
+            for unit in &parsed_units {
+                profile_service
+                    .remove_unit_from_group(
+                        &ProfileName::from(profile.as_str()),
+                        &GroupName::from(group_name.as_str()),
+                        unit,
+                    )
+                    .map_err(|e| anyhow::anyhow!("Failed to remove unit from group: {}", e))?;
+            }
+
+            println!(
+                "Successfully removed {} units from group '{}' in profile '{}'",
+                units.len(),
+                group_name,
+                profile
+            );
+        }
+        Commands::RenameGroup {
+            old_name,
+            new_name,
+            profile,
+        } => {
+            profile_service
+                .rename_repository_branch_group(
+                    &ProfileName::from(profile.as_str()),
+                    &GroupName::from(old_name.as_str()),
+                    GroupName::from(new_name.as_str()),
+                )
+                .map_err(|e| anyhow::anyhow!("Failed to rename group: {}", e))?;
+
+            println!(
+                "Successfully renamed group '{}' to '{}' in profile '{}'",
+                old_name, new_name, profile
+            );
+        }
+        Commands::ListGroups { profile } => {
+            let groups = profile_service
+                .list_repository_branch_groups(&ProfileName::from(profile.as_str()))
+                .map_err(|e| anyhow::anyhow!("Failed to list groups: {}", e))?;
+
+            if groups.is_empty() {
+                println!("No repository branch groups found in profile '{}'", profile);
+            } else {
+                println!("Repository branch groups in profile '{}':", profile);
+                for group_name in groups {
+                    println!("  - {}", group_name);
+                }
+            }
+        }
+        Commands::ShowGroup {
+            group_name,
+            profile,
+        } => {
+            let group = profile_service
+                .get_repository_branch_group(
+                    &ProfileName::from(profile.as_str()),
+                    &GroupName::from(group_name.as_str()),
+                )
+                .map_err(|e| anyhow::anyhow!("Failed to get group: {}", e))?;
+
+            println!("Repository branch group '{}':", group_name);
+            println!(
+                "  Created: {}",
+                group.created_at.format("%Y-%m-%d %H:%M:%S UTC")
+            );
+            println!(
+                "  Updated: {}",
+                group.updated_at.format("%Y-%m-%d %H:%M:%S UTC")
+            );
+            println!("  Units ({}):", group.units.len());
+
+            for unit in &group.units {
+                println!("    - {}", unit);
+            }
+        }
+        Commands::CleanupGroups { days, profile } => {
+            let removed_groups = profile_service
+                .remove_groups_older_than(&ProfileName::from(profile.as_str()), days)
+                .map_err(|e| anyhow::anyhow!("Failed to cleanup groups: {}", e))?;
+
+            if removed_groups.is_empty() {
+                println!(
+                    "No groups older than {} days found in profile '{}'",
+                    days, profile
+                );
+            } else {
+                println!(
+                    "Removed {} groups older than {} days from profile '{}':",
+                    removed_groups.len(),
+                    days,
+                    profile
+                );
+                for group_name in &removed_groups {
+                    println!("  - {}", group_name);
+                }
+            }
         }
         Commands::Search {
             query,
