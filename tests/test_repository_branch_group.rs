@@ -26,7 +26,7 @@ fn create_test_group() -> RepositoryBranchGroup {
 #[test]
 fn test_repository_branch_group_list_markdown() {
     let groups = vec![GroupName::from("group1"), GroupName::from("group2")];
-    let result = repository_branch_group_list_markdown(&groups, "default");
+    let result = repository_branch_group_list_markdown(&groups, "test-dummy-profile");
 
     assert!(
         result
@@ -40,7 +40,7 @@ fn test_repository_branch_group_list_markdown() {
 #[test]
 fn test_repository_branch_group_list_markdown_empty() {
     let groups = vec![];
-    let result = repository_branch_group_list_markdown(&groups, "default");
+    let result = repository_branch_group_list_markdown(&groups, "test-dummy-profile");
 
     assert!(
         result

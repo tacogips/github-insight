@@ -201,11 +201,12 @@ fn test_register_repository_success() {
 
     let repo_id = create_test_repository("owner1", "repo1");
 
-    let result = service.register_repository(&ProfileName::from("default"), repo_id.clone());
+    let result =
+        service.register_repository(&ProfileName::from("test-dummy-profile"), repo_id.clone());
     assert!(result.is_ok());
 
     let repositories = service
-        .list_repositories(&ProfileName::from("default"))
+        .list_repositories(&ProfileName::from("test-dummy-profile"))
         .unwrap();
     assert_eq!(repositories.len(), 1);
     assert_eq!(repositories[0], repo_id);
@@ -241,11 +242,12 @@ fn test_register_repository_already_exists() {
 
     // Register repository first time
     service
-        .register_repository(&ProfileName::from("default"), repo_id.clone())
+        .register_repository(&ProfileName::from("test-dummy-profile"), repo_id.clone())
         .unwrap();
 
     // Try to register same repository again
-    let result = service.register_repository(&ProfileName::from("default"), repo_id.clone());
+    let result =
+        service.register_repository(&ProfileName::from("test-dummy-profile"), repo_id.clone());
     assert!(result.is_err());
     assert!(matches!(
         result.unwrap_err(),
@@ -262,13 +264,13 @@ fn test_unregister_repository_success() {
 
     // Register and then unregister repository
     service
-        .register_repository(&ProfileName::from("default"), repo_id.clone())
+        .register_repository(&ProfileName::from("test-dummy-profile"), repo_id.clone())
         .unwrap();
-    let result = service.unregister_repository(&ProfileName::from("default"), &repo_id);
+    let result = service.unregister_repository(&ProfileName::from("test-dummy-profile"), &repo_id);
     assert!(result.is_ok());
 
     let repositories = service
-        .list_repositories(&ProfileName::from("default"))
+        .list_repositories(&ProfileName::from("test-dummy-profile"))
         .unwrap();
     assert_eq!(repositories.len(), 0);
 }
@@ -280,7 +282,7 @@ fn test_unregister_repository_not_found() {
 
     let repo_id = create_test_repository("owner1", "repo1");
 
-    let result = service.unregister_repository(&ProfileName::from("default"), &repo_id);
+    let result = service.unregister_repository(&ProfileName::from("test-dummy-profile"), &repo_id);
     assert!(result.is_err());
     assert!(matches!(
         result.unwrap_err(),
@@ -310,11 +312,12 @@ fn test_register_project_success() {
 
     let project_id = create_test_project("owner1", 1);
 
-    let result = service.register_project(&ProfileName::from("default"), project_id.clone());
+    let result =
+        service.register_project(&ProfileName::from("test-dummy-profile"), project_id.clone());
     assert!(result.is_ok());
 
     let projects = service
-        .list_projects(&ProfileName::from("default"))
+        .list_projects(&ProfileName::from("test-dummy-profile"))
         .unwrap();
     assert_eq!(projects.len(), 1);
     assert_eq!(projects[0], project_id);
@@ -350,11 +353,12 @@ fn test_register_project_already_exists() {
 
     // Register project first time
     service
-        .register_project(&ProfileName::from("default"), project_id.clone())
+        .register_project(&ProfileName::from("test-dummy-profile"), project_id.clone())
         .unwrap();
 
     // Try to register same project again
-    let result = service.register_project(&ProfileName::from("default"), project_id.clone());
+    let result =
+        service.register_project(&ProfileName::from("test-dummy-profile"), project_id.clone());
     assert!(result.is_err());
     assert!(matches!(
         result.unwrap_err(),
@@ -371,13 +375,13 @@ fn test_unregister_project_success() {
 
     // Register and then unregister project
     service
-        .register_project(&ProfileName::from("default"), project_id.clone())
+        .register_project(&ProfileName::from("test-dummy-profile"), project_id.clone())
         .unwrap();
-    let result = service.unregister_project(&ProfileName::from("default"), &project_id);
+    let result = service.unregister_project(&ProfileName::from("test-dummy-profile"), &project_id);
     assert!(result.is_ok());
 
     let projects = service
-        .list_projects(&ProfileName::from("default"))
+        .list_projects(&ProfileName::from("test-dummy-profile"))
         .unwrap();
     assert_eq!(projects.len(), 0);
 }
@@ -389,7 +393,7 @@ fn test_unregister_project_not_found() {
 
     let project_id = create_test_project("owner1", 1);
 
-    let result = service.unregister_project(&ProfileName::from("default"), &project_id);
+    let result = service.unregister_project(&ProfileName::from("test-dummy-profile"), &project_id);
     assert!(result.is_err());
     assert!(matches!(
         result.unwrap_err(),
@@ -415,10 +419,15 @@ fn test_unregister_project_profile_not_found() {
 #[test]
 fn test_list_repositories_empty() {
     let temp_dir = create_test_temp_dir();
-    let service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+    let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+    // Create test profile first
+    service
+        .create_profile(&ProfileName::from("test-dummy-profile"), None)
+        .unwrap();
 
     let repositories = service
-        .list_repositories(&ProfileName::from("default"))
+        .list_repositories(&ProfileName::from("test-dummy-profile"))
         .unwrap();
     assert_eq!(repositories.len(), 0);
 }
@@ -432,14 +441,14 @@ fn test_list_repositories_multiple() {
     let repo2 = create_test_repository("owner2", "repo2");
 
     service
-        .register_repository(&ProfileName::from("default"), repo1.clone())
+        .register_repository(&ProfileName::from("test-dummy-profile"), repo1.clone())
         .unwrap();
     service
-        .register_repository(&ProfileName::from("default"), repo2.clone())
+        .register_repository(&ProfileName::from("test-dummy-profile"), repo2.clone())
         .unwrap();
 
     let repositories = service
-        .list_repositories(&ProfileName::from("default"))
+        .list_repositories(&ProfileName::from("test-dummy-profile"))
         .unwrap();
     assert_eq!(repositories.len(), 2);
     assert!(repositories.contains(&repo1));
@@ -452,7 +461,7 @@ fn test_list_projects_empty() {
     let service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
 
     let projects = service
-        .list_projects(&ProfileName::from("default"))
+        .list_projects(&ProfileName::from("test-dummy-profile"))
         .unwrap();
     assert_eq!(projects.len(), 0);
 }
@@ -466,14 +475,14 @@ fn test_list_projects_multiple() {
     let project2 = create_test_project("owner2", 2);
 
     service
-        .register_project(&ProfileName::from("default"), project1.clone())
+        .register_project(&ProfileName::from("test-dummy-profile"), project1.clone())
         .unwrap();
     service
-        .register_project(&ProfileName::from("default"), project2.clone())
+        .register_project(&ProfileName::from("test-dummy-profile"), project2.clone())
         .unwrap();
 
     let projects = service
-        .list_projects(&ProfileName::from("default"))
+        .list_projects(&ProfileName::from("test-dummy-profile"))
         .unwrap();
     assert_eq!(projects.len(), 2);
     assert!(projects.contains(&project1));
@@ -668,7 +677,7 @@ fn test_register_repository_branch_group_with_name() {
 
     let group_name = service
         .register_repository_branch_group(
-            &ProfileName::from("default"),
+            &ProfileName::from("test-dummy-profile"),
             Some(GroupName::from("test-group")),
             units,
         )
@@ -677,13 +686,13 @@ fn test_register_repository_branch_group_with_name() {
     assert_eq!(group_name.value(), "test-group");
 
     let groups = service
-        .list_repository_branch_groups(&ProfileName::from("default"))
+        .list_repository_branch_groups(&ProfileName::from("test-dummy-profile"))
         .unwrap();
     assert_eq!(groups.len(), 1);
     assert_eq!(groups[0], group_name);
 
     let group = service
-        .get_repository_branch_group(&ProfileName::from("default"), &group_name)
+        .get_repository_branch_group(&ProfileName::from("test-dummy-profile"), &group_name)
         .unwrap();
     assert_eq!(group.pairs.len(), 2);
     assert!(group.pairs.contains(&unit1));
@@ -699,7 +708,7 @@ fn test_register_repository_branch_group_auto_name() {
 
     let group_name = service
         .register_repository_branch_group(
-            &ProfileName::from("default"),
+            &ProfileName::from("test-dummy-profile"),
             None, // Auto-generate name
             vec![unit],
         )
@@ -710,7 +719,7 @@ fn test_register_repository_branch_group_auto_name() {
     assert!(group_name.value().contains('-')); // Should contain dash separator
 
     let groups = service
-        .list_repository_branch_groups(&ProfileName::from("default"))
+        .list_repository_branch_groups(&ProfileName::from("test-dummy-profile"))
         .unwrap();
     assert_eq!(groups.len(), 1);
     assert_eq!(groups[0], group_name);
@@ -726,7 +735,7 @@ fn test_register_repository_branch_group_already_exists() {
     // Register group first time
     service
         .register_repository_branch_group(
-            &ProfileName::from("default"),
+            &ProfileName::from("test-dummy-profile"),
             Some(GroupName::from("duplicate-group")),
             vec![unit.clone()],
         )
@@ -734,7 +743,7 @@ fn test_register_repository_branch_group_already_exists() {
 
     // Try to register same group name again
     let result = service.register_repository_branch_group(
-        &ProfileName::from("default"),
+        &ProfileName::from("test-dummy-profile"),
         Some(GroupName::from("duplicate-group")),
         vec![unit],
     );
@@ -757,14 +766,14 @@ fn test_unregister_repository_branch_group() {
 
     let group_name = service
         .register_repository_branch_group(
-            &ProfileName::from("default"),
+            &ProfileName::from("test-dummy-profile"),
             Some(GroupName::from("removable-group")),
             units,
         )
         .unwrap();
 
     let removed_group = service
-        .unregister_repository_branch_group(&ProfileName::from("default"), &group_name)
+        .unregister_repository_branch_group(&ProfileName::from("test-dummy-profile"), &group_name)
         .unwrap();
 
     assert_eq!(removed_group.name, group_name);
@@ -774,7 +783,7 @@ fn test_unregister_repository_branch_group() {
 
     // Group should no longer exist
     let groups = service
-        .list_repository_branch_groups(&ProfileName::from("default"))
+        .list_repository_branch_groups(&ProfileName::from("test-dummy-profile"))
         .unwrap();
     assert_eq!(groups.len(), 0);
 }
@@ -785,7 +794,7 @@ fn test_unregister_repository_branch_group_not_found() {
     let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
 
     let result = service.unregister_repository_branch_group(
-        &ProfileName::from("default"),
+        &ProfileName::from("test-dummy-profile"),
         &GroupName::from("nonexistent-group"),
     );
 
@@ -806,7 +815,7 @@ fn test_add_pair_to_group() {
 
     let group_name = service
         .register_repository_branch_group(
-            &ProfileName::from("default"),
+            &ProfileName::from("test-dummy-profile"),
             Some(GroupName::from("expandable-group")),
             vec![initial_unit.clone()],
         )
@@ -815,14 +824,14 @@ fn test_add_pair_to_group() {
     // Add unit to group
     service
         .add_pair_to_group(
-            &ProfileName::from("default"),
+            &ProfileName::from("test-dummy-profile"),
             &group_name,
             additional_unit.clone(),
         )
         .unwrap();
 
     let group = service
-        .get_repository_branch_group(&ProfileName::from("default"), &group_name)
+        .get_repository_branch_group(&ProfileName::from("test-dummy-profile"), &group_name)
         .unwrap();
 
     assert_eq!(group.pairs.len(), 2);
@@ -839,14 +848,15 @@ fn test_add_pair_to_group_already_exists() {
 
     let group_name = service
         .register_repository_branch_group(
-            &ProfileName::from("default"),
+            &ProfileName::from("test-dummy-profile"),
             Some(GroupName::from("duplicate-unit-group")),
             vec![unit.clone()],
         )
         .unwrap();
 
     // Try to add same unit again
-    let result = service.add_pair_to_group(&ProfileName::from("default"), &group_name, unit);
+    let result =
+        service.add_pair_to_group(&ProfileName::from("test-dummy-profile"), &group_name, unit);
 
     assert!(result.is_err());
     assert!(matches!(
@@ -866,7 +876,7 @@ fn test_remove_pair_from_group() {
 
     let group_name = service
         .register_repository_branch_group(
-            &ProfileName::from("default"),
+            &ProfileName::from("test-dummy-profile"),
             Some(GroupName::from("reducible-group")),
             vec![unit1.clone(), unit2.clone(), unit3.clone()],
         )
@@ -874,11 +884,15 @@ fn test_remove_pair_from_group() {
 
     // Remove unit from group
     service
-        .remove_pair_from_group(&ProfileName::from("default"), &group_name, &unit2)
+        .remove_pair_from_group(
+            &ProfileName::from("test-dummy-profile"),
+            &group_name,
+            &unit2,
+        )
         .unwrap();
 
     let group = service
-        .get_repository_branch_group(&ProfileName::from("default"), &group_name)
+        .get_repository_branch_group(&ProfileName::from("test-dummy-profile"), &group_name)
         .unwrap();
 
     assert_eq!(group.pairs.len(), 2);
@@ -897,7 +911,7 @@ fn test_remove_pair_from_group_not_found() {
 
     let group_name = service
         .register_repository_branch_group(
-            &ProfileName::from("default"),
+            &ProfileName::from("test-dummy-profile"),
             Some(GroupName::from("single-unit-group")),
             vec![existing_unit],
         )
@@ -905,7 +919,7 @@ fn test_remove_pair_from_group_not_found() {
 
     // Try to remove unit that doesn't exist in group
     let result = service.remove_pair_from_group(
-        &ProfileName::from("default"),
+        &ProfileName::from("test-dummy-profile"),
         &group_name,
         &nonexistent_unit,
     );
@@ -926,7 +940,7 @@ fn test_rename_repository_branch_group() {
 
     let original_name = service
         .register_repository_branch_group(
-            &ProfileName::from("default"),
+            &ProfileName::from("test-dummy-profile"),
             Some(GroupName::from("original-name")),
             vec![unit.clone()],
         )
@@ -937,14 +951,15 @@ fn test_rename_repository_branch_group() {
     // Rename the group
     service
         .rename_repository_branch_group(
-            &ProfileName::from("default"),
+            &ProfileName::from("test-dummy-profile"),
             &original_name,
             new_name.clone(),
         )
         .unwrap();
 
     // Original name should not exist
-    let result = service.get_repository_branch_group(&ProfileName::from("default"), &original_name);
+    let result = service
+        .get_repository_branch_group(&ProfileName::from("test-dummy-profile"), &original_name);
     assert!(result.is_err());
     assert!(matches!(
         result.unwrap_err(),
@@ -953,7 +968,7 @@ fn test_rename_repository_branch_group() {
 
     // New name should exist with same content
     let group = service
-        .get_repository_branch_group(&ProfileName::from("default"), &new_name)
+        .get_repository_branch_group(&ProfileName::from("test-dummy-profile"), &new_name)
         .unwrap();
     assert_eq!(group.name, new_name);
     assert_eq!(group.pairs.len(), 1);
@@ -966,7 +981,7 @@ fn test_list_repository_branch_groups_empty() {
     let service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
 
     let groups = service
-        .list_repository_branch_groups(&ProfileName::from("default"))
+        .list_repository_branch_groups(&ProfileName::from("test-dummy-profile"))
         .unwrap();
 
     assert_eq!(groups.len(), 0);
@@ -982,7 +997,7 @@ fn test_list_repository_branch_groups_multiple() {
 
     let group1_name = service
         .register_repository_branch_group(
-            &ProfileName::from("default"),
+            &ProfileName::from("test-dummy-profile"),
             Some(GroupName::from("group1")),
             vec![unit1],
         )
@@ -990,14 +1005,14 @@ fn test_list_repository_branch_groups_multiple() {
 
     let group2_name = service
         .register_repository_branch_group(
-            &ProfileName::from("default"),
+            &ProfileName::from("test-dummy-profile"),
             Some(GroupName::from("group2")),
             vec![unit2],
         )
         .unwrap();
 
     let groups = service
-        .list_repository_branch_groups(&ProfileName::from("default"))
+        .list_repository_branch_groups(&ProfileName::from("test-dummy-profile"))
         .unwrap();
 
     assert_eq!(groups.len(), 2);
@@ -1014,7 +1029,7 @@ fn test_remove_groups_older_than() {
 
     let group_name = service
         .register_repository_branch_group(
-            &ProfileName::from("default"),
+            &ProfileName::from("test-dummy-profile"),
             Some(GroupName::from("cleanup-test-group")),
             vec![unit],
         )
@@ -1022,19 +1037,20 @@ fn test_remove_groups_older_than() {
 
     // Cleanup groups older than 1 day (should not remove the newly created group)
     let removed_groups = service
-        .remove_groups_older_than(&ProfileName::from("default"), 1)
+        .remove_groups_older_than(&ProfileName::from("test-dummy-profile"), 1)
         .unwrap();
     assert_eq!(removed_groups.len(), 0);
 
     // Cleanup groups older than 0 days (should remove all groups)
     let removed_groups = service
-        .remove_groups_older_than(&ProfileName::from("default"), 0)
+        .remove_groups_older_than(&ProfileName::from("test-dummy-profile"), 0)
         .unwrap();
     assert_eq!(removed_groups.len(), 1);
     assert_eq!(removed_groups[0], group_name);
 
     // Group should no longer exist
-    let result = service.get_repository_branch_group(&ProfileName::from("default"), &group_name);
+    let result =
+        service.get_repository_branch_group(&ProfileName::from("test-dummy-profile"), &group_name);
     assert!(result.is_err());
     assert!(matches!(
         result.unwrap_err(),
