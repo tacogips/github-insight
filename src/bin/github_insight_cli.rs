@@ -136,9 +136,9 @@ enum Commands {
         /// Profile name to delete permanently
         name: String,
     },
-    /// Register a repository branch group to a profile for managing collections of repository-branch pairs
+    /// Register a repository branch group to a profile for managing collections of branches
     RegisterGroup {
-        /// Repository URLs and their branches in format "repo_url@branch" (e.g., "https://github.com/owner/repo@main")
+        /// Branch specifiers in format "repo_url@branch" (e.g., "https://github.com/owner/repo@main")
         pairs: Vec<String>,
         /// Optional group name - if not provided, auto-generates with yyyymmdd-hash format
         #[arg(short = 'n', long)]
@@ -155,21 +155,21 @@ enum Commands {
         #[arg(short, long, default_value = "default")]
         profile: String,
     },
-    /// Add repository branches to an existing group
+    /// Add branches to an existing group
     AddBranchToBranchGroup {
         /// Group name to add branches to
         group_name: String,
-        /// Repository URLs and their branches in format "repo_url@branch"
+        /// Branch specifiers in format "repo_url@branch"
         branch_specifiers: Vec<String>,
         /// Profile name containing the group (default: "default")
         #[arg(short, long, default_value = "default")]
         profile: String,
     },
-    /// Remove repository branches from a group
+    /// Remove branches from a group
     RemoveBranchFromBranchGroup {
         /// Group name to remove branches from
         group_name: String,
-        /// Repository URLs and their branches in format "repo_url@branch"
+        /// Branch specifiers in format "repo_url@branch"
         branch_specifiers: Vec<String>,
         /// Profile name containing the group (default: "default")
         #[arg(short, long, default_value = "default")]
@@ -186,7 +186,7 @@ enum Commands {
         profile: String,
     },
     /// List all repository branch groups in a profile
-    ListGroups {
+    ListBranchGroups {
         /// Profile name to list groups from (default: "default")
         #[arg(short, long, default_value = "default")]
         profile: String,
@@ -414,7 +414,7 @@ async fn main() -> Result<()> {
                 .map_err(|e| anyhow::anyhow!("Failed to register group: {}", e))?;
 
             println!(
-                "Successfully registered group '{}' to profile '{}' with {} pairs",
+                "Successfully registered group '{}' to profile '{}' with {} branches",
                 final_group_name,
                 profile,
                 pairs.len()
@@ -432,7 +432,7 @@ async fn main() -> Result<()> {
                 .map_err(|e| anyhow::anyhow!("Failed to unregister group: {}", e))?;
 
             println!(
-                "Successfully unregistered group '{}' from profile '{}' (removed {} pairs)",
+                "Successfully unregistered group '{}' from profile '{}' (removed {} branches)",
                 group_name,
                 profile,
                 removed_group.pairs.len()
@@ -506,7 +506,7 @@ async fn main() -> Result<()> {
                 old_name, new_name, profile
             );
         }
-        Commands::ListGroups { profile } => {
+        Commands::ListBranchGroups { profile } => {
             let groups = profile_service
                 .list_repository_branch_groups(&ProfileName::from(profile.as_str()))
                 .map_err(|e| anyhow::anyhow!("Failed to list groups: {}", e))?;

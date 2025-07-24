@@ -575,7 +575,7 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Register a repository branch group to a profile for managing collections of repository-branch pairs.\n\nRepository branch groups are collections of repository URLs paired with specific branch names, designed for managing multiple related branches across different repositories. For example, you might create a group for all 'feature-x' branches across multiple repositories, or group all 'main' branches for release management.\n\nOutput: Returns the final group name (auto-generated if not provided) as a JSON string."
+        description = "Register a repository branch group to a profile for managing collections of branches.\n\nRepository branch groups are collections of branches, designed for managing multiple related branches across different repositories. For example, you might create a group for all 'feature-x' branches across multiple repositories, or group all 'main' branches for release management. A 'branch' refers to a repository URL and branch name pair (e.g., 'https://github.com/owner/repo@main').\n\nOutput: Returns the final group name (auto-generated if not provided) as a JSON string."
     )]
     async fn register_repository_branch_group(
         &self,
@@ -591,7 +591,7 @@ impl GitInsightTools {
         group_name: Option<String>,
         #[tool(param)]
         #[schemars(
-            description = "Repository URLs and their branches in format 'repo_url@branch'. Examples: ['https://github.com/owner/repo@main', 'https://github.com/owner/repo@develop']"
+            description = "Branch specifiers in format 'repo_url@branch'. Examples: ['https://github.com/owner/repo@main', 'https://github.com/owner/repo@develop']"
         )]
         pairs: Vec<String>,
     ) -> Result<CallToolResult, McpError> {
@@ -611,7 +611,7 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Remove a repository branch group from a profile. Completely removes the group and all its repository-branch pairs.\n\nOutput: Returns the removed group information as JSON, including:\n- name: Group name\n- pairs: Array of repository-branch pairs that were removed\n- created_at: When the group was originally created\n- updated_at: When the group was last modified"
+        description = "Remove a repository branch group from a profile. Completely removes the group and all its branches.\n\nOutput: Returns the removed group information as JSON, including:\n- name: Group name\n- pairs: Array of branches that were removed\n- created_at: When the group was originally created\n- updated_at: When the group was last modified"
     )]
     async fn unregister_repository_branch_group(
         &self,
@@ -638,7 +638,7 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Add repository branches to an existing group. Allows expanding group membership by adding new repository-branch pairs.\n\nEach branch specifier follows the format 'repository_url@branch_name'. Multiple pairs can be added in a single operation.\n\nOutput: Returns success confirmation message upon completion."
+        description = "Add branches to an existing group. Allows expanding group membership by adding new branches.\n\nEach branch specifier follows the format 'repository_url@branch_name'. Multiple branches can be added in a single operation.\n\nOutput: Returns success confirmation message upon completion."
     )]
     async fn add_branch_to_branch_group(
         &self,
@@ -667,7 +667,7 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Remove repository branches from a group. Allows reducing group membership by removing specific repository-branch pairs.\n\nEach branch specifier follows the format 'repository_url@branch_name'. Multiple pairs can be removed in a single operation.\n\nOutput: Returns success confirmation message upon completion."
+        description = "Remove branches from a group. Allows reducing group membership by removing specific branches.\n\nEach branch specifier follows the format 'repository_url@branch_name'. Multiple branches can be removed in a single operation.\n\nOutput: Returns success confirmation message upon completion."
     )]
     async fn remove_branch_from_branch_group(
         &self,
@@ -702,7 +702,7 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Rename a repository branch group. Changes the group's identifier while preserving all repository-branch pairs and metadata.\n\nOutput: Returns success confirmation message upon completion."
+        description = "Rename a repository branch group. Changes the group's identifier while preserving all branches and metadata.\n\nOutput: Returns success confirmation message upon completion."
     )]
     async fn rename_repository_branch_group(
         &self,
@@ -729,7 +729,7 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "List all repository branch groups in a profile. Shows all groups available for management operations.\n\nRepository branch groups organize collections of repository-branch pairs, enabling batch operations across multiple repositories and branches.\n\nOutput: Returns formatted markdown list showing:\n- Profile name\n- All group names in the profile\n- Message if no groups exist"
+        description = "List all repository branch groups in a profile. Shows all groups available for management operations.\n\nRepository branch groups organize collections of branches, enabling batch operations across multiple repositories and branches.\n\nOutput: Returns formatted markdown list showing:\n- Profile name\n- All group names in the profile\n- Message if no groups exist"
     )]
     async fn show_repository_branch_groups(
         &self,
@@ -755,7 +755,7 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Show details of a specific repository branch group. Returns comprehensive information about the group and all its repository-branch pairs.\n\nRepository branch groups contain collections of repository URLs paired with specific branch names. This allows for organized management of related branches across multiple repositories.\n\nOutput: Returns formatted markdown with:\n- Group name and creation timestamp\n- List of all repository-branch pairs in format 'repository_url | branch:branch_name'\n- Each pair shows the full GitHub repository URL and the associated branch name"
+        description = "Show details of a specific repository branch group. Returns comprehensive information about the group and all its branches.\n\nRepository branch groups contain collections of branches. Each branch is a repository URL paired with a specific branch name. This allows for organized management of related branches across multiple repositories.\n\nOutput: Returns formatted markdown with:\n- Group name and creation timestamp\n- List of all branches in format 'repository_url | branch:branch_name'\n- Each branch shows the full GitHub repository URL and the associated branch name"
     )]
     async fn get_repository_branch_group(
         &self,
@@ -783,7 +783,7 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Remove repository branch groups older than N days. Useful for cleaning up temporary or outdated groups automatically.\n\nThis operation removes groups based on their creation date, not their last update time. Groups are considered 'older' if they were created more than the specified number of days ago.\n\nOutput: Returns JSON array of removed groups, each containing:\n- name: Group name that was removed\n- pairs: Array of repository-branch pairs that were in the group\n- created_at: When the group was originally created\n- updated_at: When the group was last modified"
+        description = "Remove repository branch groups older than N days. Useful for cleaning up temporary or outdated groups automatically.\n\nThis operation removes groups based on their creation date, not their last update time. Groups are considered 'older' if they were created more than the specified number of days ago.\n\nOutput: Returns JSON array of removed groups, each containing:\n- name: Group name that was removed\n- pairs: Array of branches that were in the group\n- created_at: When the group was originally created\n- updated_at: When the group was last modified"
     )]
     async fn cleanup_repository_branch_groups(
         &self,
@@ -940,15 +940,15 @@ Examples:
 ```
 
 ### 9. register_repository_branch_group
-Register a repository branch group to a profile for managing collections of repository-branch pairs. Returns the final group name (either provided or auto-generated).
+Register a repository branch group to a profile for managing collections of branches. Returns the final group name (either provided or auto-generated).
 
 Examples:
 ```json
 // Register a group with auto-generated name
-{{"name": "register_repository_branch_group", "arguments": {{"profile_name": "default", "units": ["https://github.com/owner/repo@main", "https://github.com/owner/repo@develop"]}}}}
+{{"name": "register_repository_branch_group", "arguments": {{"profile_name": "default", "pairs": ["https://github.com/owner/repo@main", "https://github.com/owner/repo@develop"]}}}}
 
 // Register a group with specific name
-{{"name": "register_repository_branch_group", "arguments": {{"profile_name": "default", "group_name": "feature-branches", "units": ["https://github.com/owner/repo@feature-x"]}}}}
+{{"name": "register_repository_branch_group", "arguments": {{"profile_name": "default", "group_name": "feature-branches", "pairs": ["https://github.com/owner/repo@feature-x"]}}}}
 ```
 
 ### 10. unregister_repository_branch_group
@@ -960,22 +960,22 @@ Examples:
 {{"name": "unregister_repository_branch_group", "arguments": {{"profile_name": "default", "group_name": "old-group"}}}}
 ```
 
-### 11. add_units_to_group
-Add repository-branch units to an existing group. Allows expanding group membership.
+### 11. add_branch_to_branch_group
+Add branches to an existing group. Allows expanding group membership.
 
 Examples:
 ```json
-// Add units to existing group
-{{"name": "add_units_to_group", "arguments": {{"profile_name": "default", "group_name": "feature-branches", "units": ["https://github.com/owner/repo@new-feature"]}}}}
+// Add branches to existing group
+{{"name": "add_branch_to_branch_group", "arguments": {{"profile_name": "default", "group_name": "feature-branches", "branch_specifiers": ["https://github.com/owner/repo@new-feature"]}}}}
 ```
 
-### 12. remove_units_from_group
-Remove repository-branch units from a group. Allows reducing group membership.
+### 12. remove_branch_from_branch_group
+Remove branches from a group. Allows reducing group membership.
 
 Examples:
 ```json
-// Remove units from group
-{{"name": "remove_units_from_group", "arguments": {{"profile_name": "default", "group_name": "feature-branches", "units": ["https://github.com/owner/repo@old-feature"]}}}}
+// Remove branches from group
+{{"name": "remove_branch_from_branch_group", "arguments": {{"profile_name": "default", "group_name": "feature-branches", "branch_specifiers": ["https://github.com/owner/repo@old-feature"]}}}}
 ```
 
 ### 13. rename_repository_branch_group
@@ -987,17 +987,17 @@ Examples:
 {{"name": "rename_repository_branch_group", "arguments": {{"profile_name": "default", "old_name": "temp-group", "new_name": "production-branches"}}}}
 ```
 
-### 14. list_repository_branch_groups
+### 14. show_repository_branch_groups
 List all repository branch groups in a profile. Returns group names for management operations.
 
 Examples:
 ```json
 // List all groups in profile
-{{"name": "list_repository_branch_groups", "arguments": {{"profile_name": "default"}}}}
+{{"name": "show_repository_branch_groups", "arguments": {{"profile_name": "default"}}}}
 ```
 
 ### 15. get_repository_branch_group
-Show details of a specific repository branch group. Returns comprehensive group information including all units and timestamps.
+Show details of a specific repository branch group. Returns comprehensive group information including all branches and timestamps.
 
 Examples:
 ```json
@@ -1035,10 +1035,10 @@ Examples:
    - Choose between light and rich output formats (default: rich)
 
 5. **Repository Branch Group Management**:
-   - Use register_repository_branch_group to create groups of repository-branch pairs
-   - Use list_repository_branch_groups to see all groups in a profile
+   - Use register_repository_branch_group to create groups of branches
+   - Use show_repository_branch_groups to see all groups in a profile
    - Use get_repository_branch_group to get detailed information about a specific group
-   - Use add_units_to_group and remove_units_from_group to modify group membership
+   - Use add_branch_to_branch_group and remove_branch_from_branch_group to modify group membership
    - Use rename_repository_branch_group to change group names
    - Use cleanup_repository_branch_groups to remove old temporary groups
 

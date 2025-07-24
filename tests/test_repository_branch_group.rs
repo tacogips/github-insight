@@ -31,7 +31,7 @@ fn test_repository_branch_group_list_markdown() {
     assert!(
         result
             .0
-            .contains("Repository branch groups in profile 'default':")
+            .contains("Repository branch groups in profile 'test-dummy-profile':")
     );
     assert!(result.0.contains("group1"));
     assert!(result.0.contains("group2"));
@@ -45,7 +45,7 @@ fn test_repository_branch_group_list_markdown_empty() {
     assert!(
         result
             .0
-            .contains("No repository branch groups found in profile 'default'")
+            .contains("No repository branch groups found in profile 'test-dummy-profile'")
     );
 }
 

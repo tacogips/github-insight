@@ -282,6 +282,12 @@ fn test_unregister_repository_not_found() {
 
     let repo_id = create_test_repository("owner1", "repo1");
 
+    // Create the profile first so that we can test for RepositoryNotFound
+    // instead of ProfileNotFound
+    service
+        .create_profile(&ProfileName::from("test-dummy-profile"), None)
+        .unwrap();
+
     let result = service.unregister_repository(&ProfileName::from("test-dummy-profile"), &repo_id);
     assert!(result.is_err());
     assert!(matches!(
@@ -391,6 +397,11 @@ fn test_unregister_project_not_found() {
     let temp_dir = create_test_temp_dir();
     let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
 
+    // Create the profile first
+    service
+        .create_profile(&ProfileName::from("test-dummy-profile"), None)
+        .unwrap();
+
     let project_id = create_test_project("owner1", 1);
 
     let result = service.unregister_project(&ProfileName::from("test-dummy-profile"), &project_id);
@@ -458,7 +469,12 @@ fn test_list_repositories_multiple() {
 #[test]
 fn test_list_projects_empty() {
     let temp_dir = create_test_temp_dir();
-    let service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+    let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+    // Create the profile first
+    service
+        .create_profile(&ProfileName::from("test-dummy-profile"), None)
+        .unwrap();
 
     let projects = service
         .list_projects(&ProfileName::from("test-dummy-profile"))
@@ -793,6 +809,12 @@ fn test_unregister_repository_branch_group_not_found() {
     let temp_dir = create_test_temp_dir();
     let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
 
+    // Create the profile first so that we can test for GroupNotFound
+    // instead of ProfileNotFound
+    service
+        .create_profile(&ProfileName::from("test-dummy-profile"), None)
+        .unwrap();
+
     let result = service.unregister_repository_branch_group(
         &ProfileName::from("test-dummy-profile"),
         &GroupName::from("nonexistent-group"),
@@ -978,7 +1000,12 @@ fn test_rename_repository_branch_group() {
 #[test]
 fn test_list_repository_branch_groups_empty() {
     let temp_dir = create_test_temp_dir();
-    let service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+    let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
+
+    // Create the profile first
+    service
+        .create_profile(&ProfileName::from("test-dummy-profile"), None)
+        .unwrap();
 
     let groups = service
         .list_repository_branch_groups(&ProfileName::from("test-dummy-profile"))

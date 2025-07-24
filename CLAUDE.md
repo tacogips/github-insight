@@ -183,15 +183,17 @@ Examples:
 
 #### 9. Repository Branch Group Management Tools
 
-Repository branch groups are collections of repository-branch pairs that enable organized management of related branches across multiple repositories. For example, you can group all 'feature-x' branches across different repositories, or collect all 'main' branches for release management.
+Repository branch groups are collections of branches that enable organized management of related branches across multiple repositories. For example, you can group all 'feature-x' branches across different repositories, or collect all 'main' branches for release management.
+
+**Terminology**: A "branch" refers to a repository URL and branch name pair in the format "repo_url@branch_name". For example, "https://github.com/owner/repo@main" is considered one branch.
 
 ##### register_repository_branch_group
-Create a new repository branch group with repository-branch pairs.
+Create a new repository branch group with branches.
 
 Parameters:
 - `profile_name`: Profile to register the group to (e.g., 'default', 'work')
 - `group_name`: Optional group name (auto-generated if not provided)
-- `pairs`: Array of repository-branch specifiers in format "repo_url@branch"
+- `pairs`: Array of branch specifiers in format "repo_url@branch"
 
 Examples:
 - `{"profile_name": "default", "group_name": "feature-auth", "pairs": ["https://github.com/owner/frontend@feature-auth", "https://github.com/owner/backend@feature-auth"]}`
@@ -220,10 +222,10 @@ Parameters:
 Examples:
 - `{"profile_name": "default", "group_name": "feature-auth"}`
 
-Output: Returns markdown with group name, creation timestamp, and all repository-branch pairs in format "repository_url | branch:branch_name".
+Output: Returns markdown with group name, creation timestamp, and all branches in format "repository_url | branch:branch_name".
 
 ##### add_branch_to_branch_group
-Add repository-branch pairs to an existing group.
+Add branches to an existing group.
 
 Parameters:
 - `profile_name`: Profile containing the group
@@ -234,7 +236,7 @@ Examples:
 - `{"profile_name": "default", "group_name": "feature-auth", "branch_specifiers": ["https://github.com/owner/mobile@feature-auth"]}`
 
 ##### remove_branch_from_branch_group
-Remove repository-branch pairs from a group.
+Remove branches from a group.
 
 Parameters:
 - `profile_name`: Profile containing the group
@@ -254,7 +256,7 @@ Parameters:
 Examples:
 - `{"profile_name": "default", "group_name": "old-feature"}`
 
-Output: Returns JSON with removed group information including all pairs.
+Output: Returns JSON with removed group information including all branches.
 
 ##### rename_repository_branch_group
 Change a group's name while preserving its contents.
@@ -300,7 +302,7 @@ Output: Returns JSON array of removed groups with their details.
    - Choose between light and rich output formats (default: rich)
 
 5. **Repository Branch Group Management**:
-   - Use register_repository_branch_group to create collections of related repository-branch pairs
+   - Use register_repository_branch_group to create collections of related branches
    - Use show_repository_branch_groups to list all groups in a profile
    - Use get_repository_branch_group to view detailed information about a specific group
    - Use add_branch_to_branch_group and remove_branch_from_branch_group to modify group membership
@@ -350,6 +352,17 @@ GITHUB_INSIGHT_GITHUB_TOKEN=ghp_token cargo run --bin github-insight-cli -- [OPT
 - `register-project`: Register a GitHub project to a profile for comprehensive resource management and tracking with pagination support
 - `unregister-project`: Remove a GitHub project from a profile, excluding it from resource management and tracking
 - `list-projects`: Display all GitHub projects registered in a specific profile with their URLs and metadata
+
+#### Repository Branch Group Management
+
+- `register-group`: Create a new repository branch group with branches in specified profile
+- `unregister-group`: Remove a repository branch group completely from specified profile
+- `list-branch-groups`: Display all repository branch groups in a specified profile
+- `show-group`: Show detailed information about a specific repository branch group
+- `add-branch-to-branch-group`: Add branches to an existing group
+- `remove-branch-from-branch-group`: Remove branches from an existing group
+- `rename-group`: Change a group's name while preserving its contents
+- `cleanup-groups`: Remove groups older than specified days from specified profile
 
 #### Data Operations
 
