@@ -10,7 +10,7 @@ use uuid::Uuid;
 use github_insight::services::{ProfileService, ProfileServiceError};
 use github_insight::types::{
     Branch,
-    profile::{GroupName, ProfileName, RepositoryBranchUnit},
+    profile::{GroupName, ProfileName, RepositoryBranchPair},
     project::{ProjectId, ProjectNumber, ProjectType},
     repository::{Owner, RepositoryId, RepositoryName},
 };
@@ -47,13 +47,13 @@ fn create_test_repository_branch_unit(
     owner: &str,
     repo: &str,
     branch: &str,
-) -> RepositoryBranchUnit {
+) -> RepositoryBranchPair {
     let repository_id = RepositoryId {
         owner: Owner::from(owner),
         repository_name: RepositoryName::from(repo),
     };
     let branch = Branch::new(branch);
-    RepositoryBranchUnit::new(repository_id, branch)
+    RepositoryBranchPair::new(repository_id, branch)
 }
 
 #[test]
@@ -685,9 +685,9 @@ fn test_register_repository_branch_group_with_name() {
     let group = service
         .get_repository_branch_group(&ProfileName::from("default"), &group_name)
         .unwrap();
-    assert_eq!(group.units.len(), 2);
-    assert!(group.units.contains(&unit1));
-    assert!(group.units.contains(&unit2));
+    assert_eq!(group.pairs.len(), 2);
+    assert!(group.pairs.contains(&unit1));
+    assert!(group.pairs.contains(&unit2));
 }
 
 #[test]
@@ -768,9 +768,9 @@ fn test_unregister_repository_branch_group() {
         .unwrap();
 
     assert_eq!(removed_group.name, group_name);
-    assert_eq!(removed_group.units.len(), 2);
-    assert!(removed_group.units.contains(&unit1));
-    assert!(removed_group.units.contains(&unit2));
+    assert_eq!(removed_group.pairs.len(), 2);
+    assert!(removed_group.pairs.contains(&unit1));
+    assert!(removed_group.pairs.contains(&unit2));
 
     // Group should no longer exist
     let groups = service
@@ -797,7 +797,7 @@ fn test_unregister_repository_branch_group_not_found() {
 }
 
 #[test]
-fn test_add_unit_to_group() {
+fn test_add_pair_to_group() {
     let temp_dir = create_test_temp_dir();
     let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
 
@@ -814,7 +814,7 @@ fn test_add_unit_to_group() {
 
     // Add unit to group
     service
-        .add_unit_to_group(
+        .add_pair_to_group(
             &ProfileName::from("default"),
             &group_name,
             additional_unit.clone(),
@@ -825,13 +825,13 @@ fn test_add_unit_to_group() {
         .get_repository_branch_group(&ProfileName::from("default"), &group_name)
         .unwrap();
 
-    assert_eq!(group.units.len(), 2);
-    assert!(group.units.contains(&initial_unit));
-    assert!(group.units.contains(&additional_unit));
+    assert_eq!(group.pairs.len(), 2);
+    assert!(group.pairs.contains(&initial_unit));
+    assert!(group.pairs.contains(&additional_unit));
 }
 
 #[test]
-fn test_add_unit_to_group_already_exists() {
+fn test_add_pair_to_group_already_exists() {
     let temp_dir = create_test_temp_dir();
     let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
 
@@ -846,17 +846,17 @@ fn test_add_unit_to_group_already_exists() {
         .unwrap();
 
     // Try to add same unit again
-    let result = service.add_unit_to_group(&ProfileName::from("default"), &group_name, unit);
+    let result = service.add_pair_to_group(&ProfileName::from("default"), &group_name, unit);
 
     assert!(result.is_err());
     assert!(matches!(
         result.unwrap_err(),
-        ProfileServiceError::UnitAlreadyExists(_)
+        ProfileServiceError::PairAlreadyExists(_)
     ));
 }
 
 #[test]
-fn test_remove_unit_from_group() {
+fn test_remove_pair_from_group() {
     let temp_dir = create_test_temp_dir();
     let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
 
@@ -874,21 +874,21 @@ fn test_remove_unit_from_group() {
 
     // Remove unit from group
     service
-        .remove_unit_from_group(&ProfileName::from("default"), &group_name, &unit2)
+        .remove_pair_from_group(&ProfileName::from("default"), &group_name, &unit2)
         .unwrap();
 
     let group = service
         .get_repository_branch_group(&ProfileName::from("default"), &group_name)
         .unwrap();
 
-    assert_eq!(group.units.len(), 2);
-    assert!(group.units.contains(&unit1));
-    assert!(group.units.contains(&unit3));
-    assert!(!group.units.contains(&unit2));
+    assert_eq!(group.pairs.len(), 2);
+    assert!(group.pairs.contains(&unit1));
+    assert!(group.pairs.contains(&unit3));
+    assert!(!group.pairs.contains(&unit2));
 }
 
 #[test]
-fn test_remove_unit_from_group_not_found() {
+fn test_remove_pair_from_group_not_found() {
     let temp_dir = create_test_temp_dir();
     let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
 
@@ -904,7 +904,7 @@ fn test_remove_unit_from_group_not_found() {
         .unwrap();
 
     // Try to remove unit that doesn't exist in group
-    let result = service.remove_unit_from_group(
+    let result = service.remove_pair_from_group(
         &ProfileName::from("default"),
         &group_name,
         &nonexistent_unit,
@@ -913,7 +913,7 @@ fn test_remove_unit_from_group_not_found() {
     assert!(result.is_err());
     assert!(matches!(
         result.unwrap_err(),
-        ProfileServiceError::UnitNotFound(_)
+        ProfileServiceError::PairNotFound(_)
     ));
 }
 
@@ -956,8 +956,8 @@ fn test_rename_repository_branch_group() {
         .get_repository_branch_group(&ProfileName::from("default"), &new_name)
         .unwrap();
     assert_eq!(group.name, new_name);
-    assert_eq!(group.units.len(), 1);
-    assert!(group.units.contains(&unit));
+    assert_eq!(group.pairs.len(), 1);
+    assert!(group.pairs.contains(&unit));
 }
 
 #[test]
@@ -1125,8 +1125,8 @@ fn test_repository_branch_group_persistence_across_instances() {
         let group = service
             .get_repository_branch_group(&ProfileName::from("persistent-profile"), &group_name)
             .unwrap();
-        assert_eq!(group.units.len(), 2);
-        assert!(group.units.contains(&unit1));
-        assert!(group.units.contains(&unit2));
+        assert_eq!(group.pairs.len(), 2);
+        assert!(group.pairs.contains(&unit1));
+        assert!(group.pairs.contains(&unit2));
     }
 }

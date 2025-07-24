@@ -9,6 +9,7 @@ use github_insight::formatter::{
     project_body_markdown_with_timezone, project_resource_body_markdown_with_timezone,
     project_resource_body_markdown_with_timezone_light, pull_request_body_markdown_with_timezone,
     pull_request_body_markdown_with_timezone_light, repository_body_markdown_with_timezone,
+    repository_branch_group_list_markdown, repository_branch_group_markdown_with_timezone,
 };
 
 /// Parse timezone if provided, otherwise use local timezone
@@ -24,7 +25,7 @@ use github_insight::types::project::{ProjectNumber, ProjectUrl};
 use github_insight::types::repository::{Owner, RepositoryName};
 use github_insight::types::{
     GroupName, IssueUrl, OutputOption, ProfileName, ProjectId, PullRequestUrl,
-    RepositoryBranchUnit, RepositoryId, RepositoryUrl, SearchQuery,
+    RepositoryBranchPair, RepositoryId, RepositoryUrl, SearchQuery,
 };
 
 #[derive(Parser)]
@@ -138,7 +139,7 @@ enum Commands {
     /// Register a repository branch group to a profile for managing collections of repository-branch pairs
     RegisterGroup {
         /// Repository URLs and their branches in format "repo_url@branch" (e.g., "https://github.com/owner/repo@main")
-        units: Vec<String>,
+        pairs: Vec<String>,
         /// Optional group name - if not provided, auto-generates with yyyymmdd-hash format
         #[arg(short = 'n', long)]
         group_name: Option<String>,
@@ -154,22 +155,22 @@ enum Commands {
         #[arg(short, long, default_value = "default")]
         profile: String,
     },
-    /// Add repository-branch units to an existing group
-    AddUnitsToGroup {
-        /// Group name to add units to
+    /// Add repository branches to an existing group
+    AddBranchToBranchGroup {
+        /// Group name to add branches to
         group_name: String,
         /// Repository URLs and their branches in format "repo_url@branch"
-        units: Vec<String>,
+        branch_specifiers: Vec<String>,
         /// Profile name containing the group (default: "default")
         #[arg(short, long, default_value = "default")]
         profile: String,
     },
-    /// Remove repository-branch units from a group
-    RemoveUnitsFromGroup {
-        /// Group name to remove units from
+    /// Remove repository branches from a group
+    RemoveBranchFromBranchGroup {
+        /// Group name to remove branches from
         group_name: String,
         /// Repository URLs and their branches in format "repo_url@branch"
-        units: Vec<String>,
+        branch_specifiers: Vec<String>,
         /// Profile name containing the group (default: "default")
         #[arg(short, long, default_value = "default")]
         profile: String,
@@ -397,26 +398,26 @@ async fn main() -> Result<()> {
             println!("Successfully deleted profile '{}'", name);
         }
         Commands::RegisterGroup {
-            units,
+            pairs,
             group_name,
             profile,
         } => {
-            let parsed_units = RepositoryBranchUnit::try_from_specifiers(&units)?;
+            let parsed_pairs = RepositoryBranchPair::try_from_specifiers(&pairs)?;
             let group_name_opt = group_name.map(GroupName::from);
 
             let final_group_name = profile_service
                 .register_repository_branch_group(
                     &ProfileName::from(profile.as_str()),
                     group_name_opt,
-                    parsed_units,
+                    parsed_pairs,
                 )
                 .map_err(|e| anyhow::anyhow!("Failed to register group: {}", e))?;
 
             println!(
-                "Successfully registered group '{}' to profile '{}' with {} units",
+                "Successfully registered group '{}' to profile '{}' with {} pairs",
                 final_group_name,
                 profile,
-                units.len()
+                pairs.len()
             );
         }
         Commands::UnregisterGroup {
@@ -431,56 +432,58 @@ async fn main() -> Result<()> {
                 .map_err(|e| anyhow::anyhow!("Failed to unregister group: {}", e))?;
 
             println!(
-                "Successfully unregistered group '{}' from profile '{}' (removed {} units)",
+                "Successfully unregistered group '{}' from profile '{}' (removed {} pairs)",
                 group_name,
                 profile,
-                removed_group.units.len()
+                removed_group.pairs.len()
             );
         }
-        Commands::AddUnitsToGroup {
+        Commands::AddBranchToBranchGroup {
             group_name,
-            units,
+            branch_specifiers,
             profile,
         } => {
-            let parsed_units = RepositoryBranchUnit::try_from_specifiers(&units)?;
+            let parsed_branch_specifiers =
+                RepositoryBranchPair::try_from_specifiers(&branch_specifiers)?;
 
-            for unit in parsed_units {
+            for branch_specifier in parsed_branch_specifiers {
                 profile_service
-                    .add_unit_to_group(
+                    .add_pair_to_group(
                         &ProfileName::from(profile.as_str()),
                         &GroupName::from(group_name.as_str()),
-                        unit,
+                        branch_specifier,
                     )
-                    .map_err(|e| anyhow::anyhow!("Failed to add unit to group: {}", e))?;
+                    .map_err(|e| anyhow::anyhow!("Failed to add branch to group: {}", e))?;
             }
 
             println!(
-                "Successfully added {} units to group '{}' in profile '{}'",
-                units.len(),
+                "Successfully added {} branches to group '{}' in profile '{}'",
+                branch_specifiers.len(),
                 group_name,
                 profile
             );
         }
-        Commands::RemoveUnitsFromGroup {
+        Commands::RemoveBranchFromBranchGroup {
             group_name,
-            units,
+            branch_specifiers,
             profile,
         } => {
-            let parsed_units = RepositoryBranchUnit::try_from_specifiers(&units)?;
+            let parsed_branch_specifiers =
+                RepositoryBranchPair::try_from_specifiers(&branch_specifiers)?;
 
-            for unit in &parsed_units {
+            for branch_specifier in &parsed_branch_specifiers {
                 profile_service
-                    .remove_unit_from_group(
+                    .remove_pair_from_group(
                         &ProfileName::from(profile.as_str()),
                         &GroupName::from(group_name.as_str()),
-                        unit,
+                        branch_specifier,
                     )
-                    .map_err(|e| anyhow::anyhow!("Failed to remove unit from group: {}", e))?;
+                    .map_err(|e| anyhow::anyhow!("Failed to remove branch from group: {}", e))?;
             }
 
             println!(
-                "Successfully removed {} units from group '{}' in profile '{}'",
-                units.len(),
+                "Successfully removed {} branches from group '{}' in profile '{}'",
+                branch_specifiers.len(),
                 group_name,
                 profile
             );
@@ -508,12 +511,14 @@ async fn main() -> Result<()> {
                 .list_repository_branch_groups(&ProfileName::from(profile.as_str()))
                 .map_err(|e| anyhow::anyhow!("Failed to list groups: {}", e))?;
 
-            if groups.is_empty() {
-                println!("No repository branch groups found in profile '{}'", profile);
-            } else {
-                println!("Repository branch groups in profile '{}':", profile);
-                for group_name in groups {
-                    println!("  - {}", group_name);
+            match cli.format {
+                OutputFormat::Json => {
+                    let json_output = serde_json::to_string_pretty(&groups)?;
+                    println!("{}", json_output);
+                }
+                OutputFormat::Markdown => {
+                    let formatted = repository_branch_group_list_markdown(&groups, &profile);
+                    println!("{}", formatted.0);
                 }
             }
         }
@@ -528,19 +533,16 @@ async fn main() -> Result<()> {
                 )
                 .map_err(|e| anyhow::anyhow!("Failed to get group: {}", e))?;
 
-            println!("Repository branch group '{}':", group_name);
-            println!(
-                "  Created: {}",
-                group.created_at.format("%Y-%m-%d %H:%M:%S UTC")
-            );
-            println!(
-                "  Updated: {}",
-                group.updated_at.format("%Y-%m-%d %H:%M:%S UTC")
-            );
-            println!("  Units ({}):", group.units.len());
-
-            for unit in &group.units {
-                println!("    - {}", unit);
+            match cli.format {
+                OutputFormat::Json => {
+                    let json_output = serde_json::to_string_pretty(&group)?;
+                    println!("{}", json_output);
+                }
+                OutputFormat::Markdown => {
+                    let formatted =
+                        repository_branch_group_markdown_with_timezone(&group, timezone.as_ref());
+                    println!("{}", formatted.0);
+                }
             }
         }
         Commands::CleanupGroups { days, profile } => {

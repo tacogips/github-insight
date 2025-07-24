@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::types::{
-    GroupName, ProfileInfo, ProfileName, ProjectId, RepositoryBranchGroup, RepositoryBranchUnit,
+    GroupName, ProfileInfo, ProfileName, ProjectId, RepositoryBranchGroup, RepositoryBranchPair,
     RepositoryId,
 };
 
@@ -40,10 +40,10 @@ pub enum ProfileServiceError {
     GroupAlreadyExists(String),
     /// Repository branch group not found
     GroupNotFound(String),
-    /// Repository branch unit already exists in group
-    UnitAlreadyExists(String),
-    /// Repository branch unit not found in group
-    UnitNotFound(String),
+    /// Repository branch pair already exists in group
+    PairAlreadyExists(String),
+    /// Repository branch pair not found in group
+    PairNotFound(String),
     /// Invalid group name
     InvalidGroupName(String),
     /// Invalid profile name
@@ -77,15 +77,15 @@ impl std::fmt::Display for ProfileServiceError {
             Self::GroupNotFound(group) => {
                 write!(f, "Repository branch group '{}' not found", group)
             }
-            Self::UnitAlreadyExists(unit) => {
+            Self::PairAlreadyExists(pair) => {
                 write!(
                     f,
-                    "Repository branch unit '{}' already exists in group",
-                    unit
+                    "Repository branch pair '{}' already exists in group",
+                    pair
                 )
             }
-            Self::UnitNotFound(unit) => {
-                write!(f, "Repository branch unit '{}' not found in group", unit)
+            Self::PairNotFound(pair) => {
+                write!(f, "Repository branch pair '{}' not found in group", pair)
             }
             Self::InvalidGroupName(name) => write!(f, "Invalid group name: '{}'", name),
             Self::InvalidProfileName(name) => write!(f, "Invalid profile name: '{}'", name),
@@ -280,13 +280,13 @@ impl ProfileService {
         &mut self,
         profile_name: &ProfileName,
         group_name: Option<GroupName>,
-        units: Vec<RepositoryBranchUnit>,
+        pairs: Vec<RepositoryBranchPair>,
     ) -> Result<GroupName, ProfileServiceError> {
         // Get or create profile
         let profile = self.get_or_create_profile(profile_name)?;
 
         // Create the group
-        let group = RepositoryBranchGroup::new(group_name, units);
+        let group = RepositoryBranchGroup::new(group_name, pairs);
         let final_group_name = group.name.clone();
 
         // Check if group already exists
@@ -328,12 +328,12 @@ impl ProfileService {
         Ok(group)
     }
 
-    /// Add a repository branch unit to an existing group
-    pub fn add_unit_to_group(
+    /// Add a repository branch pair to an existing group
+    pub fn add_pair_to_group(
         &mut self,
         profile_name: &ProfileName,
         group_name: &GroupName,
-        unit: RepositoryBranchUnit,
+        pair: RepositoryBranchPair,
     ) -> Result<(), ProfileServiceError> {
         {
             let profile = self
@@ -345,12 +345,12 @@ impl ProfileService {
                 .get_repository_branch_group_mut(group_name)
                 .ok_or_else(|| ProfileServiceError::GroupNotFound(group_name.to_string()))?;
 
-            // Check if unit already exists
-            if group.units.contains(&unit) {
-                return Err(ProfileServiceError::UnitAlreadyExists(unit.to_string()));
+            // Check if pair already exists
+            if group.pairs.contains(&pair) {
+                return Err(ProfileServiceError::PairAlreadyExists(pair.to_string()));
             }
 
-            group.add_unit(unit);
+            group.add_pair(pair);
         }
 
         // Update profile info and persist
@@ -359,12 +359,12 @@ impl ProfileService {
         Ok(())
     }
 
-    /// Remove a repository branch unit from a group
-    pub fn remove_unit_from_group(
+    /// Remove a repository branch pair from a group
+    pub fn remove_pair_from_group(
         &mut self,
         profile_name: &ProfileName,
         group_name: &GroupName,
-        unit: &RepositoryBranchUnit,
+        pair: &RepositoryBranchPair,
     ) -> Result<(), ProfileServiceError> {
         {
             let profile = self
@@ -376,12 +376,12 @@ impl ProfileService {
                 .get_repository_branch_group_mut(group_name)
                 .ok_or_else(|| ProfileServiceError::GroupNotFound(group_name.to_string()))?;
 
-            // Check if unit exists
-            if !group.units.contains(unit) {
-                return Err(ProfileServiceError::UnitNotFound(unit.to_string()));
+            // Check if pair exists
+            if !group.pairs.contains(pair) {
+                return Err(ProfileServiceError::PairNotFound(pair.to_string()));
             }
 
-            group.remove_unit(unit);
+            group.remove_pair(pair);
         }
 
         // Update profile info and persist
@@ -718,13 +718,13 @@ mod tests {
             repository_name: RepositoryName::from("test-repo"),
         };
         let branch = crate::types::Branch::new("main");
-        let unit = RepositoryBranchUnit::new(repo_id, branch);
+        let pair = RepositoryBranchPair::new(repo_id, branch);
 
         let group_name = service
             .register_repository_branch_group(
                 &ProfileName::from("default"),
                 Some(GroupName::from("test-group")),
-                vec![unit.clone()],
+                vec![pair.clone()],
             )
             .unwrap();
 
@@ -739,8 +739,8 @@ mod tests {
         let group = service
             .get_repository_branch_group(&ProfileName::from("default"), &group_name)
             .unwrap();
-        assert_eq!(group.units.len(), 1);
-        assert_eq!(group.units[0], unit);
+        assert_eq!(group.pairs.len(), 1);
+        assert_eq!(group.pairs[0], pair);
     }
 
     #[test]
@@ -753,11 +753,11 @@ mod tests {
             repository_name: RepositoryName::from("test-repo"),
         };
         let branch = crate::types::Branch::new("main");
-        let unit = RepositoryBranchUnit::new(repo_id, branch);
+        let pair = RepositoryBranchPair::new(repo_id, branch);
 
         // Register group without providing name
         let group_name = service
-            .register_repository_branch_group(&ProfileName::from("default"), None, vec![unit])
+            .register_repository_branch_group(&ProfileName::from("default"), None, vec![pair])
             .unwrap();
 
         // Should generate a name with yyyymmdd-hash format
@@ -766,7 +766,7 @@ mod tests {
     }
 
     #[test]
-    fn test_repository_branch_group_unit_management() {
+    fn test_repository_branch_group_pair_management() {
         let temp_dir = TempDir::new().unwrap();
         let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
 
@@ -779,45 +779,45 @@ mod tests {
             repository_name: RepositoryName::from("test-repo2"),
         };
 
-        let unit1 = RepositoryBranchUnit::new(repo_id1, crate::types::Branch::new("main"));
-        let unit2 =
-            RepositoryBranchUnit::new(repo_id2.clone(), crate::types::Branch::new("develop"));
-        let unit3 = RepositoryBranchUnit::new(repo_id2, crate::types::Branch::new("feature"));
+        let pair1 = RepositoryBranchPair::new(repo_id1, crate::types::Branch::new("main"));
+        let pair2 =
+            RepositoryBranchPair::new(repo_id2.clone(), crate::types::Branch::new("develop"));
+        let pair3 = RepositoryBranchPair::new(repo_id2, crate::types::Branch::new("feature"));
 
-        // Create group with initial unit
+        // Create group with initial pair
         let group_name = service
             .register_repository_branch_group(
                 &ProfileName::from("default"),
                 Some(GroupName::from("test-group")),
-                vec![unit1.clone()],
+                vec![pair1.clone()],
             )
             .unwrap();
 
-        // Add more units
+        // Add more pairs
         service
-            .add_unit_to_group(&ProfileName::from("default"), &group_name, unit2.clone())
+            .add_pair_to_group(&ProfileName::from("default"), &group_name, pair2.clone())
             .unwrap();
         service
-            .add_unit_to_group(&ProfileName::from("default"), &group_name, unit3.clone())
+            .add_pair_to_group(&ProfileName::from("default"), &group_name, pair3.clone())
             .unwrap();
 
         let group = service
             .get_repository_branch_group(&ProfileName::from("default"), &group_name)
             .unwrap();
-        assert_eq!(group.units.len(), 3);
+        assert_eq!(group.pairs.len(), 3);
 
-        // Remove a unit
+        // Remove a pair
         service
-            .remove_unit_from_group(&ProfileName::from("default"), &group_name, &unit2)
+            .remove_pair_from_group(&ProfileName::from("default"), &group_name, &pair2)
             .unwrap();
 
         let group = service
             .get_repository_branch_group(&ProfileName::from("default"), &group_name)
             .unwrap();
-        assert_eq!(group.units.len(), 2);
-        assert!(group.units.contains(&unit1));
-        assert!(group.units.contains(&unit3));
-        assert!(!group.units.contains(&unit2));
+        assert_eq!(group.pairs.len(), 2);
+        assert!(group.pairs.contains(&pair1));
+        assert!(group.pairs.contains(&pair3));
+        assert!(!group.pairs.contains(&pair2));
     }
 
     #[test]
@@ -825,7 +825,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
 
-        let unit = RepositoryBranchUnit::new(
+        let pair = RepositoryBranchPair::new(
             RepositoryId {
                 owner: Owner::from("test-owner"),
                 repository_name: RepositoryName::from("test-repo"),
@@ -837,7 +837,7 @@ mod tests {
             .register_repository_branch_group(
                 &ProfileName::from("default"),
                 Some(GroupName::from("original-name")),
-                vec![unit],
+                vec![pair],
             )
             .unwrap();
 
@@ -870,7 +870,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let mut service = ProfileService::new(temp_dir.path().to_path_buf()).unwrap();
 
-        let unit = RepositoryBranchUnit::new(
+        let pair = RepositoryBranchPair::new(
             RepositoryId {
                 owner: Owner::from("test-owner"),
                 repository_name: RepositoryName::from("test-repo"),
@@ -883,7 +883,7 @@ mod tests {
             .register_repository_branch_group(
                 &ProfileName::from("default"),
                 Some(GroupName::from("test-group")),
-                vec![unit],
+                vec![pair],
             )
             .unwrap();
 

@@ -21,6 +21,9 @@ use crate::formatter::{
         pull_request_body_markdown_with_timezone, pull_request_body_markdown_with_timezone_light,
     },
     repository::repository_body_markdown_with_timezone,
+    repository_branch_group::{
+        repository_branch_group_list_markdown, repository_branch_group_markdown_with_timezone,
+    },
 };
 use crate::github::GitHubClient;
 use crate::types::{
@@ -572,7 +575,7 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Register a repository branch group to a profile for managing collections of repository-branch pairs. Returns the final group name (either provided or auto-generated)."
+        description = "Register a repository branch group to a profile for managing collections of repository-branch pairs.\n\nRepository branch groups are collections of repository URLs paired with specific branch names, designed for managing multiple related branches across different repositories. For example, you might create a group for all 'feature-x' branches across multiple repositories, or group all 'main' branches for release management.\n\nOutput: Returns the final group name (auto-generated if not provided) as a JSON string."
     )]
     async fn register_repository_branch_group(
         &self,
@@ -590,19 +593,16 @@ impl GitInsightTools {
         #[schemars(
             description = "Repository URLs and their branches in format 'repo_url@branch'. Examples: ['https://github.com/owner/repo@main', 'https://github.com/owner/repo@develop']"
         )]
-        units: Vec<String>,
+        pairs: Vec<String>,
     ) -> Result<CallToolResult, McpError> {
-        let final_group_name = functions::profile::register_repository_branch_group(
-            profile_name,
-            group_name,
-            units,
-        )
-        .await
-        .map_err(|e| McpError::internal_error(e, None))?;
+        let final_group_name =
+            functions::profile::register_repository_branch_group(profile_name, group_name, pairs)
+                .await
+                .map_err(|e| McpError::internal_error(e, None))?;
 
-        let content = Content::text(serde_json::to_string_pretty(&final_group_name).map_err(|e| {
-            McpError::internal_error(format!("Failed to serialize result: {}", e), None)
-        })?);
+        let content = Content::text(serde_json::to_string_pretty(&final_group_name).map_err(
+            |e| McpError::internal_error(format!("Failed to serialize result: {}", e), None),
+        )?);
 
         Ok(CallToolResult {
             content: vec![content],
@@ -611,27 +611,21 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Remove a repository branch group from a profile. Returns the removed group information."
+        description = "Remove a repository branch group from a profile. Completely removes the group and all its repository-branch pairs.\n\nOutput: Returns the removed group information as JSON, including:\n- name: Group name\n- pairs: Array of repository-branch pairs that were removed\n- created_at: When the group was originally created\n- updated_at: When the group was last modified"
     )]
     async fn unregister_repository_branch_group(
         &self,
         #[tool(param)]
-        #[schemars(
-            description = "Profile name containing the group. Example: 'default', 'work'"
-        )]
+        #[schemars(description = "Profile name containing the group. Example: 'default', 'work'")]
         profile_name: String,
         #[tool(param)]
-        #[schemars(
-            description = "Group name to remove. Example: 'feature-branch-group'"
-        )]
+        #[schemars(description = "Group name to remove. Example: 'feature-branch-group'")]
         group_name: String,
     ) -> Result<CallToolResult, McpError> {
-        let removed_group = functions::profile::unregister_repository_branch_group(
-            profile_name,
-            group_name,
-        )
-        .await
-        .map_err(|e| McpError::internal_error(e, None))?;
+        let removed_group =
+            functions::profile::unregister_repository_branch_group(profile_name, group_name)
+                .await
+                .map_err(|e| McpError::internal_error(e, None))?;
 
         let content = Content::text(serde_json::to_string_pretty(&removed_group).map_err(|e| {
             McpError::internal_error(format!("Failed to serialize result: {}", e), None)
@@ -644,31 +638,27 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Add repository-branch units to an existing group. Allows expanding group membership."
+        description = "Add repository branches to an existing group. Allows expanding group membership by adding new repository-branch pairs.\n\nEach branch specifier follows the format 'repository_url@branch_name'. Multiple pairs can be added in a single operation.\n\nOutput: Returns success confirmation message upon completion."
     )]
-    async fn add_units_to_group(
+    async fn add_branch_to_branch_group(
         &self,
         #[tool(param)]
-        #[schemars(
-            description = "Profile name containing the group. Example: 'default'"
-        )]
+        #[schemars(description = "Profile name containing the group. Example: 'default'")]
         profile_name: String,
         #[tool(param)]
-        #[schemars(
-            description = "Group name to add units to. Example: 'feature-branch-group'"
-        )]
+        #[schemars(description = "Group name to add branches to. Example: 'feature-branch-group'")]
         group_name: String,
         #[tool(param)]
         #[schemars(
             description = "Repository URLs and their branches in format 'repo_url@branch'. Examples: ['https://github.com/owner/repo@feature-x']"
         )]
-        units: Vec<String>,
+        branch_specifiers: Vec<String>,
     ) -> Result<CallToolResult, McpError> {
-        functions::profile::add_units_to_group(profile_name, group_name, units)
+        functions::profile::add_branch_to_branch_group(profile_name, group_name, branch_specifiers)
             .await
             .map_err(|e| McpError::internal_error(e, None))?;
 
-        let content = Content::text("Units added successfully".to_string());
+        let content = Content::text("Branches added successfully".to_string());
 
         Ok(CallToolResult {
             content: vec![content],
@@ -677,31 +667,33 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Remove repository-branch units from a group. Allows reducing group membership."
+        description = "Remove repository branches from a group. Allows reducing group membership by removing specific repository-branch pairs.\n\nEach branch specifier follows the format 'repository_url@branch_name'. Multiple pairs can be removed in a single operation.\n\nOutput: Returns success confirmation message upon completion."
     )]
-    async fn remove_units_from_group(
+    async fn remove_branch_from_branch_group(
         &self,
         #[tool(param)]
-        #[schemars(
-            description = "Profile name containing the group. Example: 'default'"
-        )]
+        #[schemars(description = "Profile name containing the group. Example: 'default'")]
         profile_name: String,
         #[tool(param)]
         #[schemars(
-            description = "Group name to remove units from. Example: 'feature-branch-group'"
+            description = "Group name to remove branches from. Example: 'feature-branch-group'"
         )]
         group_name: String,
         #[tool(param)]
         #[schemars(
             description = "Repository URLs and their branches in format 'repo_url@branch'. Examples: ['https://github.com/owner/repo@old-feature']"
         )]
-        units: Vec<String>,
+        branch_specifiers: Vec<String>,
     ) -> Result<CallToolResult, McpError> {
-        functions::profile::remove_units_from_group(profile_name, group_name, units)
-            .await
-            .map_err(|e| McpError::internal_error(e, None))?;
+        functions::profile::remove_branch_from_branch_group(
+            profile_name,
+            group_name,
+            branch_specifiers,
+        )
+        .await
+        .map_err(|e| McpError::internal_error(e, None))?;
 
-        let content = Content::text("Units removed successfully".to_string());
+        let content = Content::text("Branches removed successfully".to_string());
 
         Ok(CallToolResult {
             content: vec![content],
@@ -710,24 +702,18 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Rename a repository branch group. Changes the group's identifier while preserving its contents."
+        description = "Rename a repository branch group. Changes the group's identifier while preserving all repository-branch pairs and metadata.\n\nOutput: Returns success confirmation message upon completion."
     )]
     async fn rename_repository_branch_group(
         &self,
         #[tool(param)]
-        #[schemars(
-            description = "Profile name containing the group. Example: 'default'"
-        )]
+        #[schemars(description = "Profile name containing the group. Example: 'default'")]
         profile_name: String,
         #[tool(param)]
-        #[schemars(
-            description = "Current group name. Example: 'old-group-name'"
-        )]
+        #[schemars(description = "Current group name. Example: 'old-group-name'")]
         old_name: String,
         #[tool(param)]
-        #[schemars(
-            description = "New group name. Example: 'new-group-name'"
-        )]
+        #[schemars(description = "New group name. Example: 'new-group-name'")]
         new_name: String,
     ) -> Result<CallToolResult, McpError> {
         functions::profile::rename_repository_branch_group(profile_name, old_name, new_name)
@@ -743,23 +729,24 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "List all repository branch groups in a profile. Returns group names for management operations."
+        description = "List all repository branch groups in a profile. Shows all groups available for management operations.\n\nRepository branch groups organize collections of repository-branch pairs, enabling batch operations across multiple repositories and branches.\n\nOutput: Returns formatted markdown list showing:\n- Profile name\n- All group names in the profile\n- Message if no groups exist"
     )]
-    async fn list_repository_branch_groups(
+    async fn show_repository_branch_groups(
         &self,
         #[tool(param)]
-        #[schemars(
-            description = "Profile name to list groups from. Example: 'default', 'work'"
-        )]
+        #[schemars(description = "Profile name to list groups from. Example: 'default', 'work'")]
         profile_name: String,
     ) -> Result<CallToolResult, McpError> {
-        let groups = functions::profile::list_repository_branch_groups(profile_name)
-            .await
-            .map_err(|e| McpError::internal_error(e, None))?;
+        let profile_name_str = profile_name.clone();
+        let groups = functions::profile::list_repository_branch_groups(&ProfileName::from(
+            profile_name.as_str(),
+        ))
+        .await
+        .map_err(|e| McpError::internal_error(e, None))?;
 
-        let content = Content::text(serde_json::to_string_pretty(&groups).map_err(|e| {
-            McpError::internal_error(format!("Failed to serialize result: {}", e), None)
-        })?);
+        let group_names: Vec<crate::types::GroupName> = groups;
+        let formatted = repository_branch_group_list_markdown(&group_names, &profile_name_str);
+        let content = Content::text(formatted.0);
 
         Ok(CallToolResult {
             content: vec![content],
@@ -768,14 +755,12 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Show details of a specific repository branch group. Returns comprehensive group information including all units and timestamps."
+        description = "Show details of a specific repository branch group. Returns comprehensive information about the group and all its repository-branch pairs.\n\nRepository branch groups contain collections of repository URLs paired with specific branch names. This allows for organized management of related branches across multiple repositories.\n\nOutput: Returns formatted markdown with:\n- Group name and creation timestamp\n- List of all repository-branch pairs in format 'repository_url | branch:branch_name'\n- Each pair shows the full GitHub repository URL and the associated branch name"
     )]
     async fn get_repository_branch_group(
         &self,
         #[tool(param)]
-        #[schemars(
-            description = "Profile name containing the group. Example: 'default'"
-        )]
+        #[schemars(description = "Profile name containing the group. Example: 'default'")]
         profile_name: String,
         #[tool(param)]
         #[schemars(
@@ -787,9 +772,9 @@ impl GitInsightTools {
             .await
             .map_err(|e| McpError::internal_error(e, None))?;
 
-        let content = Content::text(serde_json::to_string_pretty(&group).map_err(|e| {
-            McpError::internal_error(format!("Failed to serialize result: {}", e), None)
-        })?);
+        let formatted =
+            repository_branch_group_markdown_with_timezone(&group, self.timezone.as_ref());
+        let content = Content::text(formatted.0);
 
         Ok(CallToolResult {
             content: vec![content],
@@ -798,14 +783,12 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Remove repository branch groups older than N days. Useful for cleaning up temporary or outdated groups."
+        description = "Remove repository branch groups older than N days. Useful for cleaning up temporary or outdated groups automatically.\n\nThis operation removes groups based on their creation date, not their last update time. Groups are considered 'older' if they were created more than the specified number of days ago.\n\nOutput: Returns JSON array of removed groups, each containing:\n- name: Group name that was removed\n- pairs: Array of repository-branch pairs that were in the group\n- created_at: When the group was originally created\n- updated_at: When the group was last modified"
     )]
     async fn cleanup_repository_branch_groups(
         &self,
         #[tool(param)]
-        #[schemars(
-            description = "Profile name to clean up. Example: 'default'"
-        )]
+        #[schemars(description = "Profile name to clean up. Example: 'default'")]
         profile_name: String,
         #[tool(param)]
         #[schemars(
@@ -813,13 +796,15 @@ impl GitInsightTools {
         )]
         days: i64,
     ) -> Result<CallToolResult, McpError> {
-        let removed_groups = functions::profile::cleanup_repository_branch_groups(profile_name, days)
-            .await
-            .map_err(|e| McpError::internal_error(e, None))?;
+        let removed_groups =
+            functions::profile::cleanup_repository_branch_groups(profile_name, days)
+                .await
+                .map_err(|e| McpError::internal_error(e, None))?;
 
-        let content = Content::text(serde_json::to_string_pretty(&removed_groups).map_err(|e| {
-            McpError::internal_error(format!("Failed to serialize result: {}", e), None)
-        })?);
+        let content =
+            Content::text(serde_json::to_string_pretty(&removed_groups).map_err(|e| {
+                McpError::internal_error(format!("Failed to serialize result: {}", e), None)
+            })?);
 
         Ok(CallToolResult {
             content: vec![content],

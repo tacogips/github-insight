@@ -36,14 +36,14 @@ impl From<&str> for ProfileName {
     }
 }
 
-/// Repository and branch unit identifier
+/// Repository and branch pair identifier
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
-pub struct RepositoryBranchUnit {
+pub struct RepositoryBranchPair {
     pub repository_id: RepositoryId,
     pub branch: Branch,
 }
 
-impl RepositoryBranchUnit {
+impl RepositoryBranchPair {
     pub fn new(repository_id: RepositoryId, branch: Branch) -> Self {
         Self {
             repository_id,
@@ -89,8 +89,8 @@ impl RepositoryBranchUnit {
         let mut parsed_specifiers = Vec::new();
 
         for specifier in specifiers {
-            let unit = Self::try_from_str(specifier.trim())?;
-            parsed_specifiers.push(unit);
+            let pair = Self::try_from_str(specifier.trim())?;
+            parsed_specifiers.push(pair);
         }
 
         Ok(parsed_specifiers)
@@ -118,7 +118,7 @@ impl RepositoryBranchUnit {
     }
 }
 
-impl fmt::Display for RepositoryBranchUnit {
+impl fmt::Display for RepositoryBranchPair {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}@{}", self.repository_id, self.branch.as_str())
     }
@@ -164,23 +164,23 @@ impl From<&str> for GroupName {
     }
 }
 
-/// Repository branch group containing multiple repository-branch units
+/// Repository branch group containing multiple repository-branch pairs
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct RepositoryBranchGroup {
     pub name: GroupName,
-    pub units: Vec<RepositoryBranchUnit>,
+    pub pairs: Vec<RepositoryBranchPair>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
 impl RepositoryBranchGroup {
-    pub fn new(name: Option<GroupName>, units: Vec<RepositoryBranchUnit>) -> Self {
+    pub fn new(name: Option<GroupName>, pairs: Vec<RepositoryBranchPair>) -> Self {
         let now = Utc::now();
         let group_name = name.unwrap_or_else(GroupName::generate_default);
 
         Self {
             name: group_name,
-            units,
+            pairs,
             created_at: now,
             updated_at: now,
         }
@@ -190,17 +190,17 @@ impl RepositoryBranchGroup {
         self.updated_at = Utc::now();
     }
 
-    pub fn add_unit(&mut self, unit: RepositoryBranchUnit) {
-        if !self.units.contains(&unit) {
-            self.units.push(unit);
+    pub fn add_pair(&mut self, pair: RepositoryBranchPair) {
+        if !self.pairs.contains(&pair) {
+            self.pairs.push(pair);
             self.touch();
         }
     }
 
-    pub fn remove_unit(&mut self, unit: &RepositoryBranchUnit) {
-        let original_len = self.units.len();
-        self.units.retain(|u| u != unit);
-        if self.units.len() != original_len {
+    pub fn remove_pair(&mut self, pair: &RepositoryBranchPair) {
+        let original_len = self.pairs.len();
+        self.pairs.retain(|p| p != pair);
+        if self.pairs.len() != original_len {
             self.touch();
         }
     }
@@ -211,11 +211,11 @@ impl RepositoryBranchGroup {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.units.is_empty()
+        self.pairs.is_empty()
     }
 
-    pub fn unit_count(&self) -> usize {
-        self.units.len()
+    pub fn pair_count(&self) -> usize {
+        self.pairs.len()
     }
 }
 

@@ -6,7 +6,10 @@
 
 use crate::services::{ProfileService, default_profile_config_dir};
 use crate::types::profile::ProfileInfo;
-use crate::types::{GroupName, ProfileName, ProjectId, ProjectUrl, RepositoryBranchGroup, RepositoryBranchUnit, RepositoryId, RepositoryUrl};
+use crate::types::{
+    GroupName, ProfileName, ProjectId, ProjectUrl, RepositoryBranchGroup, RepositoryBranchPair,
+    RepositoryId, RepositoryUrl,
+};
 
 /// Create a new profile
 pub async fn create_profile(
@@ -199,7 +202,7 @@ pub async fn get_profile_info(profile_name: String) -> Result<ProfileInfo, Strin
 pub async fn register_repository_branch_group(
     profile_name: String,
     group_name: Option<String>,
-    units: Vec<String>,
+    pairs: Vec<String>,
 ) -> Result<String, String> {
     let config_dir = default_profile_config_dir()
         .map_err(|e| format!("Failed to get config directory: {}", e))?;
@@ -209,13 +212,13 @@ pub async fn register_repository_branch_group(
 
     let profile_name = ProfileName::from(profile_name.as_str());
     let group_name_opt = group_name.map(GroupName::from);
-    
-    // Parse repository branch units
-    let parsed_units = RepositoryBranchUnit::try_from_specifiers(&units)
-        .map_err(|e| format!("Failed to parse repository branch units: {}", e))?;
+
+    // Parse repository branch pairs
+    let parsed_pairs = RepositoryBranchPair::try_from_specifiers(&pairs)
+        .map_err(|e| format!("Failed to parse repository branch pairs: {}", e))?;
 
     let final_group_name = service
-        .register_repository_branch_group(&profile_name, group_name_opt, parsed_units)
+        .register_repository_branch_group(&profile_name, group_name_opt, parsed_pairs)
         .map_err(|e| format!("Failed to register repository branch group: {}", e))?;
 
     Ok(final_group_name.value().to_string())
@@ -242,11 +245,11 @@ pub async fn unregister_repository_branch_group(
     Ok(removed_group)
 }
 
-/// Add repository branch units to an existing group
-pub async fn add_units_to_group(
+/// Add repository branches to an existing group
+pub async fn add_branch_to_branch_group(
     profile_name: String,
     group_name: String,
-    units: Vec<String>,
+    branch_specifiers: Vec<String>,
 ) -> Result<(), String> {
     let config_dir = default_profile_config_dir()
         .map_err(|e| format!("Failed to get config directory: {}", e))?;
@@ -256,25 +259,25 @@ pub async fn add_units_to_group(
 
     let profile_name = ProfileName::from(profile_name.as_str());
     let group_name = GroupName::from(group_name.as_str());
-    
-    // Parse repository branch units
-    let parsed_units = RepositoryBranchUnit::try_from_specifiers(&units)
-        .map_err(|e| format!("Failed to parse repository branch units: {}", e))?;
 
-    for unit in parsed_units {
+    // Parse branch specifiers
+    let parsed_branch_specifiers = RepositoryBranchPair::try_from_specifiers(&branch_specifiers)
+        .map_err(|e| format!("Failed to parse branch specifiers: {}", e))?;
+
+    for branch_specifier in parsed_branch_specifiers {
         service
-            .add_unit_to_group(&profile_name, &group_name, unit)
-            .map_err(|e| format!("Failed to add unit to group: {}", e))?;
+            .add_pair_to_group(&profile_name, &group_name, branch_specifier)
+            .map_err(|e| format!("Failed to add branch to group: {}", e))?;
     }
 
     Ok(())
 }
 
-/// Remove repository branch units from a group
-pub async fn remove_units_from_group(
+/// Remove repository branches from a group
+pub async fn remove_branch_from_branch_group(
     profile_name: String,
     group_name: String,
-    units: Vec<String>,
+    branch_specifiers: Vec<String>,
 ) -> Result<(), String> {
     let config_dir = default_profile_config_dir()
         .map_err(|e| format!("Failed to get config directory: {}", e))?;
@@ -284,15 +287,15 @@ pub async fn remove_units_from_group(
 
     let profile_name = ProfileName::from(profile_name.as_str());
     let group_name = GroupName::from(group_name.as_str());
-    
-    // Parse repository branch units
-    let parsed_units = RepositoryBranchUnit::try_from_specifiers(&units)
-        .map_err(|e| format!("Failed to parse repository branch units: {}", e))?;
 
-    for unit in &parsed_units {
+    // Parse branch specifiers
+    let parsed_branch_specifiers = RepositoryBranchPair::try_from_specifiers(&branch_specifiers)
+        .map_err(|e| format!("Failed to parse branch specifiers: {}", e))?;
+
+    for branch_specifier in &parsed_branch_specifiers {
         service
-            .remove_unit_from_group(&profile_name, &group_name, unit)
-            .map_err(|e| format!("Failed to remove unit from group: {}", e))?;
+            .remove_pair_from_group(&profile_name, &group_name, branch_specifier)
+            .map_err(|e| format!("Failed to remove branch from group: {}", e))?;
     }
 
     Ok(())
@@ -322,14 +325,14 @@ pub async fn rename_repository_branch_group(
 }
 
 /// List all repository branch groups in a profile
-pub async fn list_repository_branch_groups(profile_name: String) -> Result<Vec<String>, String> {
+pub async fn list_repository_branch_groups(
+    profile_name: &ProfileName,
+) -> Result<Vec<GroupName>, String> {
     let config_dir = default_profile_config_dir()
         .map_err(|e| format!("Failed to get config directory: {}", e))?;
 
     let service = ProfileService::new(config_dir)
         .map_err(|e| format!("Failed to create profile service: {}", e))?;
-
-    let profile_name = ProfileName::from(profile_name.as_str());
 
     let groups = service
         .list_repository_branch_groups(&profile_name)
@@ -337,7 +340,7 @@ pub async fn list_repository_branch_groups(profile_name: String) -> Result<Vec<S
 
     let group_names = groups
         .into_iter()
-        .map(|group_name| group_name.value().to_string())
+        .map(|group_name| crate::types::GroupName::from(group_name))
         .collect();
 
     Ok(group_names)
