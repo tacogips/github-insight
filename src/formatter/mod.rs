@@ -3,6 +3,7 @@ pub mod project;
 pub mod project_resource;
 pub mod pull_request;
 pub mod repository;
+pub mod repository_branch_group;
 
 use chrono::{DateTime, FixedOffset, Local, Utc};
 use serde::{Deserialize, Serialize};
@@ -13,6 +14,7 @@ pub use project::*;
 pub use project_resource::*;
 pub use pull_request::*;
 pub use repository::*;
+pub use repository_branch_group::*;
 
 /// Common timezone abbreviations with their UTC offsets
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumString, Display, EnumIter)]

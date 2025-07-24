@@ -9,6 +9,7 @@ use github_insight::formatter::{
     project_body_markdown_with_timezone, project_resource_body_markdown_with_timezone,
     project_resource_body_markdown_with_timezone_light, pull_request_body_markdown_with_timezone,
     pull_request_body_markdown_with_timezone_light, repository_body_markdown_with_timezone,
+    repository_branch_group_list_markdown, repository_branch_group_markdown_with_timezone,
 };
 
 /// Parse timezone if provided, otherwise use local timezone
@@ -23,8 +24,8 @@ use github_insight::tools::functions;
 use github_insight::types::project::{ProjectNumber, ProjectUrl};
 use github_insight::types::repository::{Owner, RepositoryName};
 use github_insight::types::{
-    IssueUrl, OutputOption, ProfileName, ProjectId, PullRequestUrl, RepositoryId, RepositoryUrl,
-    SearchQuery,
+    GroupName, IssueUrl, OutputOption, ProfileName, ProjectId, PullRequestUrl,
+    RepositoryBranchPair, RepositoryId, RepositoryUrl, SearchQuery,
 };
 
 #[derive(Parser)]
@@ -134,6 +135,77 @@ enum Commands {
     DeleteProfile {
         /// Profile name to delete permanently
         name: String,
+    },
+    /// Register a repository branch group to a profile for managing collections of branches
+    RegisterGroup {
+        /// Branch specifiers in format "repo_url@branch" (e.g., "https://github.com/owner/repo@main")
+        pairs: Vec<String>,
+        /// Optional group name - if not provided, auto-generates with yyyymmdd-hash format
+        #[arg(short = 'n', long)]
+        group_name: Option<String>,
+        /// Profile name for organizing groups (default: "default")
+        #[arg(short, long, default_value = "default")]
+        profile: String,
+    },
+    /// Remove a repository branch group from a profile
+    UnregisterGroup {
+        /// Group name to remove
+        group_name: String,
+        /// Profile name containing the group (default: "default")
+        #[arg(short, long, default_value = "default")]
+        profile: String,
+    },
+    /// Add branches to an existing group
+    AddBranchToBranchGroup {
+        /// Group name to add branches to
+        group_name: String,
+        /// Branch specifiers in format "repo_url@branch"
+        branch_specifiers: Vec<String>,
+        /// Profile name containing the group (default: "default")
+        #[arg(short, long, default_value = "default")]
+        profile: String,
+    },
+    /// Remove branches from a group
+    RemoveBranchFromBranchGroup {
+        /// Group name to remove branches from
+        group_name: String,
+        /// Branch specifiers in format "repo_url@branch"
+        branch_specifiers: Vec<String>,
+        /// Profile name containing the group (default: "default")
+        #[arg(short, long, default_value = "default")]
+        profile: String,
+    },
+    /// Rename a repository branch group
+    RenameGroup {
+        /// Current group name
+        old_name: String,
+        /// New group name
+        new_name: String,
+        /// Profile name containing the group (default: "default")
+        #[arg(short, long, default_value = "default")]
+        profile: String,
+    },
+    /// List all repository branch groups in a profile
+    ListBranchGroups {
+        /// Profile name to list groups from (default: "default")
+        #[arg(short, long, default_value = "default")]
+        profile: String,
+    },
+    /// Show details of a specific repository branch group
+    ShowGroup {
+        /// Group name to show details for
+        group_name: String,
+        /// Profile name containing the group (default: "default")
+        #[arg(short, long, default_value = "default")]
+        profile: String,
+    },
+    /// Remove repository branch groups older than N days
+    CleanupGroups {
+        /// Number of days - groups older than this will be removed
+        days: i64,
+        /// Profile name to clean up (default: "default")
+        #[arg(short, long, default_value = "default")]
+        profile: String,
     },
     /// Search for issues and pull requests across multiple repositories with advanced GitHub search syntax and pagination support
     Search {
@@ -324,6 +396,176 @@ async fn main() -> Result<()> {
                 .delete_profile(&ProfileName::from(name.as_str()))
                 .map_err(|e| anyhow::anyhow!("Failed to delete profile: {}", e))?;
             println!("Successfully deleted profile '{}'", name);
+        }
+        Commands::RegisterGroup {
+            pairs,
+            group_name,
+            profile,
+        } => {
+            let parsed_pairs = RepositoryBranchPair::try_from_specifiers(&pairs)?;
+            let group_name_opt = group_name.map(GroupName::from);
+
+            let final_group_name = profile_service
+                .register_repository_branch_group(
+                    &ProfileName::from(profile.as_str()),
+                    group_name_opt,
+                    parsed_pairs,
+                )
+                .map_err(|e| anyhow::anyhow!("Failed to register group: {}", e))?;
+
+            println!(
+                "Successfully registered group '{}' to profile '{}' with {} branches",
+                final_group_name,
+                profile,
+                pairs.len()
+            );
+        }
+        Commands::UnregisterGroup {
+            group_name,
+            profile,
+        } => {
+            let removed_group = profile_service
+                .unregister_repository_branch_group(
+                    &ProfileName::from(profile.as_str()),
+                    &GroupName::from(group_name.as_str()),
+                )
+                .map_err(|e| anyhow::anyhow!("Failed to unregister group: {}", e))?;
+
+            println!(
+                "Successfully unregistered group '{}' from profile '{}' (removed {} branches)",
+                group_name,
+                profile,
+                removed_group.pairs.len()
+            );
+        }
+        Commands::AddBranchToBranchGroup {
+            group_name,
+            branch_specifiers,
+            profile,
+        } => {
+            let parsed_branch_specifiers =
+                RepositoryBranchPair::try_from_specifiers(&branch_specifiers)?;
+
+            for branch_specifier in parsed_branch_specifiers {
+                profile_service
+                    .add_pair_to_group(
+                        &ProfileName::from(profile.as_str()),
+                        &GroupName::from(group_name.as_str()),
+                        branch_specifier,
+                    )
+                    .map_err(|e| anyhow::anyhow!("Failed to add branch to group: {}", e))?;
+            }
+
+            println!(
+                "Successfully added {} branches to group '{}' in profile '{}'",
+                branch_specifiers.len(),
+                group_name,
+                profile
+            );
+        }
+        Commands::RemoveBranchFromBranchGroup {
+            group_name,
+            branch_specifiers,
+            profile,
+        } => {
+            let parsed_branch_specifiers =
+                RepositoryBranchPair::try_from_specifiers(&branch_specifiers)?;
+
+            for branch_specifier in &parsed_branch_specifiers {
+                profile_service
+                    .remove_pair_from_group(
+                        &ProfileName::from(profile.as_str()),
+                        &GroupName::from(group_name.as_str()),
+                        branch_specifier,
+                    )
+                    .map_err(|e| anyhow::anyhow!("Failed to remove branch from group: {}", e))?;
+            }
+
+            println!(
+                "Successfully removed {} branches from group '{}' in profile '{}'",
+                branch_specifiers.len(),
+                group_name,
+                profile
+            );
+        }
+        Commands::RenameGroup {
+            old_name,
+            new_name,
+            profile,
+        } => {
+            profile_service
+                .rename_repository_branch_group(
+                    &ProfileName::from(profile.as_str()),
+                    &GroupName::from(old_name.as_str()),
+                    GroupName::from(new_name.as_str()),
+                )
+                .map_err(|e| anyhow::anyhow!("Failed to rename group: {}", e))?;
+
+            println!(
+                "Successfully renamed group '{}' to '{}' in profile '{}'",
+                old_name, new_name, profile
+            );
+        }
+        Commands::ListBranchGroups { profile } => {
+            let groups = profile_service
+                .list_repository_branch_groups(&ProfileName::from(profile.as_str()))
+                .map_err(|e| anyhow::anyhow!("Failed to list groups: {}", e))?;
+
+            match cli.format {
+                OutputFormat::Json => {
+                    let json_output = serde_json::to_string_pretty(&groups)?;
+                    println!("{}", json_output);
+                }
+                OutputFormat::Markdown => {
+                    let formatted = repository_branch_group_list_markdown(&groups, &profile);
+                    println!("{}", formatted.0);
+                }
+            }
+        }
+        Commands::ShowGroup {
+            group_name,
+            profile,
+        } => {
+            let group = profile_service
+                .get_repository_branch_group(
+                    &ProfileName::from(profile.as_str()),
+                    &GroupName::from(group_name.as_str()),
+                )
+                .map_err(|e| anyhow::anyhow!("Failed to get group: {}", e))?;
+
+            match cli.format {
+                OutputFormat::Json => {
+                    let json_output = serde_json::to_string_pretty(&group)?;
+                    println!("{}", json_output);
+                }
+                OutputFormat::Markdown => {
+                    let formatted =
+                        repository_branch_group_markdown_with_timezone(&group, timezone.as_ref());
+                    println!("{}", formatted.0);
+                }
+            }
+        }
+        Commands::CleanupGroups { days, profile } => {
+            let removed_groups = profile_service
+                .remove_groups_older_than(&ProfileName::from(profile.as_str()), days)
+                .map_err(|e| anyhow::anyhow!("Failed to cleanup groups: {}", e))?;
+
+            if removed_groups.is_empty() {
+                println!(
+                    "No groups older than {} days found in profile '{}'",
+                    days, profile
+                );
+            } else {
+                println!(
+                    "Removed {} groups older than {} days from profile '{}':",
+                    removed_groups.len(),
+                    days,
+                    profile
+                );
+                for group_name in &removed_groups {
+                    println!("  - {}", group_name);
+                }
+            }
         }
         Commands::Search {
             query,

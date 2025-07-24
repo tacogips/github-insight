@@ -21,6 +21,9 @@ use crate::formatter::{
         pull_request_body_markdown_with_timezone, pull_request_body_markdown_with_timezone_light,
     },
     repository::repository_body_markdown_with_timezone,
+    repository_branch_group::{
+        repository_branch_group_list_markdown, repository_branch_group_markdown_with_timezone,
+    },
 };
 use crate::github::GitHubClient;
 use crate::types::{
@@ -570,6 +573,244 @@ impl GitInsightTools {
             is_error: Some(false),
         })
     }
+
+    #[tool(
+        description = "Register a repository branch group to a profile for managing collections of branches.\n\nRepository branch groups are collections of branches, designed for managing multiple related branches across different repositories. For example, you might create a group for all 'feature-x' branches across multiple repositories, or group all 'main' branches for release management. A 'branch' refers to a repository URL and branch name pair (e.g., 'https://github.com/owner/repo@main').\n\nOutput: Returns the final group name (auto-generated if not provided) as a JSON string."
+    )]
+    async fn register_repository_branch_group(
+        &self,
+        #[tool(param)]
+        #[schemars(
+            description = "Profile name for organizing groups. Example: 'default', 'work', 'personal'"
+        )]
+        profile_name: String,
+        #[tool(param)]
+        #[schemars(
+            description = "Optional group name - if not provided, auto-generates with yyyymmdd-hash format. Example: 'feature-branch-group', 'release-candidates'"
+        )]
+        group_name: Option<String>,
+        #[tool(param)]
+        #[schemars(
+            description = "Branch specifiers in format 'repo_url@branch'. Examples: ['https://github.com/owner/repo@main', 'https://github.com/owner/repo@develop']"
+        )]
+        pairs: Vec<String>,
+    ) -> Result<CallToolResult, McpError> {
+        let final_group_name =
+            functions::profile::register_repository_branch_group(profile_name, group_name, pairs)
+                .await
+                .map_err(|e| McpError::internal_error(e, None))?;
+
+        let content = Content::text(serde_json::to_string_pretty(&final_group_name).map_err(
+            |e| McpError::internal_error(format!("Failed to serialize result: {}", e), None),
+        )?);
+
+        Ok(CallToolResult {
+            content: vec![content],
+            is_error: Some(false),
+        })
+    }
+
+    #[tool(
+        description = "Remove a repository branch group from a profile. Completely removes the group and all its branches.\n\nOutput: Returns the removed group information as JSON, including:\n- name: Group name\n- pairs: Array of branches that were removed\n- created_at: When the group was originally created\n- updated_at: When the group was last modified"
+    )]
+    async fn unregister_repository_branch_group(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Profile name containing the group. Example: 'default', 'work'")]
+        profile_name: String,
+        #[tool(param)]
+        #[schemars(description = "Group name to remove. Example: 'feature-branch-group'")]
+        group_name: String,
+    ) -> Result<CallToolResult, McpError> {
+        let removed_group =
+            functions::profile::unregister_repository_branch_group(profile_name, group_name)
+                .await
+                .map_err(|e| McpError::internal_error(e, None))?;
+
+        let content = Content::text(serde_json::to_string_pretty(&removed_group).map_err(|e| {
+            McpError::internal_error(format!("Failed to serialize result: {}", e), None)
+        })?);
+
+        Ok(CallToolResult {
+            content: vec![content],
+            is_error: Some(false),
+        })
+    }
+
+    #[tool(
+        description = "Add branches to an existing group. Allows expanding group membership by adding new branches.\n\nEach branch specifier follows the format 'repository_url@branch_name'. Multiple branches can be added in a single operation.\n\nOutput: Returns success confirmation message upon completion."
+    )]
+    async fn add_branch_to_branch_group(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Profile name containing the group. Example: 'default'")]
+        profile_name: String,
+        #[tool(param)]
+        #[schemars(description = "Group name to add branches to. Example: 'feature-branch-group'")]
+        group_name: String,
+        #[tool(param)]
+        #[schemars(
+            description = "Repository URLs and their branches in format 'repo_url@branch'. Examples: ['https://github.com/owner/repo@feature-x']"
+        )]
+        branch_specifiers: Vec<String>,
+    ) -> Result<CallToolResult, McpError> {
+        functions::profile::add_branch_to_branch_group(profile_name, group_name, branch_specifiers)
+            .await
+            .map_err(|e| McpError::internal_error(e, None))?;
+
+        let content = Content::text("Branches added successfully".to_string());
+
+        Ok(CallToolResult {
+            content: vec![content],
+            is_error: Some(false),
+        })
+    }
+
+    #[tool(
+        description = "Remove branches from a group. Allows reducing group membership by removing specific branches.\n\nEach branch specifier follows the format 'repository_url@branch_name'. Multiple branches can be removed in a single operation.\n\nOutput: Returns success confirmation message upon completion."
+    )]
+    async fn remove_branch_from_branch_group(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Profile name containing the group. Example: 'default'")]
+        profile_name: String,
+        #[tool(param)]
+        #[schemars(
+            description = "Group name to remove branches from. Example: 'feature-branch-group'"
+        )]
+        group_name: String,
+        #[tool(param)]
+        #[schemars(
+            description = "Repository URLs and their branches in format 'repo_url@branch'. Examples: ['https://github.com/owner/repo@old-feature']"
+        )]
+        branch_specifiers: Vec<String>,
+    ) -> Result<CallToolResult, McpError> {
+        functions::profile::remove_branch_from_branch_group(
+            profile_name,
+            group_name,
+            branch_specifiers,
+        )
+        .await
+        .map_err(|e| McpError::internal_error(e, None))?;
+
+        let content = Content::text("Branches removed successfully".to_string());
+
+        Ok(CallToolResult {
+            content: vec![content],
+            is_error: Some(false),
+        })
+    }
+
+    #[tool(
+        description = "Rename a repository branch group. Changes the group's identifier while preserving all branches and metadata.\n\nOutput: Returns success confirmation message upon completion."
+    )]
+    async fn rename_repository_branch_group(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Profile name containing the group. Example: 'default'")]
+        profile_name: String,
+        #[tool(param)]
+        #[schemars(description = "Current group name. Example: 'old-group-name'")]
+        old_name: String,
+        #[tool(param)]
+        #[schemars(description = "New group name. Example: 'new-group-name'")]
+        new_name: String,
+    ) -> Result<CallToolResult, McpError> {
+        functions::profile::rename_repository_branch_group(profile_name, old_name, new_name)
+            .await
+            .map_err(|e| McpError::internal_error(e, None))?;
+
+        let content = Content::text("Group renamed successfully".to_string());
+
+        Ok(CallToolResult {
+            content: vec![content],
+            is_error: Some(false),
+        })
+    }
+
+    #[tool(
+        description = "List all repository branch groups in a profile. Shows all groups available for management operations.\n\nRepository branch groups organize collections of branches, enabling batch operations across multiple repositories and branches.\n\nOutput: Returns formatted markdown list showing:\n- Profile name\n- All group names in the profile\n- Message if no groups exist"
+    )]
+    async fn show_repository_branch_groups(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Profile name to list groups from. Example: 'default', 'work'")]
+        profile_name: String,
+    ) -> Result<CallToolResult, McpError> {
+        let profile_name_str = profile_name.clone();
+        let groups = functions::profile::list_repository_branch_groups(&ProfileName::from(
+            profile_name.as_str(),
+        ))
+        .await
+        .map_err(|e| McpError::internal_error(e, None))?;
+
+        let group_names: Vec<crate::types::GroupName> = groups;
+        let formatted = repository_branch_group_list_markdown(&group_names, &profile_name_str);
+        let content = Content::text(formatted.0);
+
+        Ok(CallToolResult {
+            content: vec![content],
+            is_error: Some(false),
+        })
+    }
+
+    #[tool(
+        description = "Show details of a specific repository branch group. Returns comprehensive information about the group and all its branches.\n\nRepository branch groups contain collections of branches. Each branch is a repository URL paired with a specific branch name. This allows for organized management of related branches across multiple repositories.\n\nOutput: Returns formatted markdown with:\n- Group name and creation timestamp\n- List of all branches in format 'repository_url | branch:branch_name'\n- Each branch shows the full GitHub repository URL and the associated branch name"
+    )]
+    async fn get_repository_branch_group(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Profile name containing the group. Example: 'default'")]
+        profile_name: String,
+        #[tool(param)]
+        #[schemars(
+            description = "Group name to show details for. Example: 'feature-branch-group'"
+        )]
+        group_name: String,
+    ) -> Result<CallToolResult, McpError> {
+        let group = functions::profile::get_repository_branch_group(profile_name, group_name)
+            .await
+            .map_err(|e| McpError::internal_error(e, None))?;
+
+        let formatted =
+            repository_branch_group_markdown_with_timezone(&group, self.timezone.as_ref());
+        let content = Content::text(formatted.0);
+
+        Ok(CallToolResult {
+            content: vec![content],
+            is_error: Some(false),
+        })
+    }
+
+    #[tool(
+        description = "Remove repository branch groups older than N days. Useful for cleaning up temporary or outdated groups automatically.\n\nThis operation removes groups based on their creation date, not their last update time. Groups are considered 'older' if they were created more than the specified number of days ago.\n\nOutput: Returns JSON array of removed groups, each containing:\n- name: Group name that was removed\n- pairs: Array of branches that were in the group\n- created_at: When the group was originally created\n- updated_at: When the group was last modified"
+    )]
+    async fn cleanup_repository_branch_groups(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Profile name to clean up. Example: 'default'")]
+        profile_name: String,
+        #[tool(param)]
+        #[schemars(
+            description = "Number of days - groups older than this will be removed. Example: 30, 7"
+        )]
+        days: i64,
+    ) -> Result<CallToolResult, McpError> {
+        let removed_groups =
+            functions::profile::cleanup_repository_branch_groups(profile_name, days)
+                .await
+                .map_err(|e| McpError::internal_error(e, None))?;
+
+        let content =
+            Content::text(serde_json::to_string_pretty(&removed_groups).map_err(|e| {
+                McpError::internal_error(format!("Failed to serialize result: {}", e), None)
+            })?);
+
+        Ok(CallToolResult {
+            content: vec![content],
+            is_error: Some(false),
+        })
+    }
 }
 
 #[tool(tool_box)]
@@ -698,6 +939,81 @@ Examples:
 {{"name": "list_project_urls_in_current_profile", "arguments": {{}}}}
 ```
 
+### 9. register_repository_branch_group
+Register a repository branch group to a profile for managing collections of branches. Returns the final group name (either provided or auto-generated).
+
+Examples:
+```json
+// Register a group with auto-generated name
+{{"name": "register_repository_branch_group", "arguments": {{"profile_name": "default", "pairs": ["https://github.com/owner/repo@main", "https://github.com/owner/repo@develop"]}}}}
+
+// Register a group with specific name
+{{"name": "register_repository_branch_group", "arguments": {{"profile_name": "default", "group_name": "feature-branches", "pairs": ["https://github.com/owner/repo@feature-x"]}}}}
+```
+
+### 10. unregister_repository_branch_group
+Remove a repository branch group from a profile. Returns the removed group information.
+
+Examples:
+```json
+// Remove a group
+{{"name": "unregister_repository_branch_group", "arguments": {{"profile_name": "default", "group_name": "old-group"}}}}
+```
+
+### 11. add_branch_to_branch_group
+Add branches to an existing group. Allows expanding group membership.
+
+Examples:
+```json
+// Add branches to existing group
+{{"name": "add_branch_to_branch_group", "arguments": {{"profile_name": "default", "group_name": "feature-branches", "branch_specifiers": ["https://github.com/owner/repo@new-feature"]}}}}
+```
+
+### 12. remove_branch_from_branch_group
+Remove branches from a group. Allows reducing group membership.
+
+Examples:
+```json
+// Remove branches from group
+{{"name": "remove_branch_from_branch_group", "arguments": {{"profile_name": "default", "group_name": "feature-branches", "branch_specifiers": ["https://github.com/owner/repo@old-feature"]}}}}
+```
+
+### 13. rename_repository_branch_group
+Rename a repository branch group. Changes the group's identifier while preserving its contents.
+
+Examples:
+```json
+// Rename a group
+{{"name": "rename_repository_branch_group", "arguments": {{"profile_name": "default", "old_name": "temp-group", "new_name": "production-branches"}}}}
+```
+
+### 14. show_repository_branch_groups
+List all repository branch groups in a profile. Returns group names for management operations.
+
+Examples:
+```json
+// List all groups in profile
+{{"name": "show_repository_branch_groups", "arguments": {{"profile_name": "default"}}}}
+```
+
+### 15. get_repository_branch_group
+Show details of a specific repository branch group. Returns comprehensive group information including all branches and timestamps.
+
+Examples:
+```json
+// Get group details
+{{"name": "get_repository_branch_group", "arguments": {{"profile_name": "default", "group_name": "feature-branches"}}}}
+```
+
+### 16. cleanup_repository_branch_groups
+Remove repository branch groups older than N days. Useful for cleaning up temporary or outdated groups.
+
+Examples:
+```json
+// Clean up groups older than 30 days
+{{"name": "cleanup_repository_branch_groups", "arguments": {{"profile_name": "default", "days": 30}}}}
+```
+
 ## Common Workflows
 
 1. **Profile Management**:
@@ -718,7 +1034,15 @@ Examples:
    - Fetch from all projects in profile or specific project URLs
    - Choose between light and rich output formats (default: rich)
 
-5. **Output Formatting**:
+5. **Repository Branch Group Management**:
+   - Use register_repository_branch_group to create groups of branches
+   - Use show_repository_branch_groups to see all groups in a profile
+   - Use get_repository_branch_group to get detailed information about a specific group
+   - Use add_branch_to_branch_group and remove_branch_from_branch_group to modify group membership
+   - Use rename_repository_branch_group to change group names
+   - Use cleanup_repository_branch_groups to remove old temporary groups
+
+6. **Output Formatting**:
    - Rich format provides comprehensive details including full comments, timestamps, custom fields
    - Light format provides minimal information for quick overview
    - get_project_resources defaults to rich format for detailed project information
