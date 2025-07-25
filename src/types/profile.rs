@@ -169,18 +169,28 @@ impl From<&str> for GroupName {
 pub struct RepositoryBranchGroup {
     pub name: GroupName,
     pub pairs: Vec<RepositoryBranchPair>,
+    pub description: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
 impl RepositoryBranchGroup {
     pub fn new(name: Option<GroupName>, pairs: Vec<RepositoryBranchPair>) -> Self {
+        Self::new_with_description(name, pairs, None)
+    }
+
+    pub fn new_with_description(
+        name: Option<GroupName>,
+        pairs: Vec<RepositoryBranchPair>,
+        description: Option<String>,
+    ) -> Self {
         let now = Utc::now();
         let group_name = name.unwrap_or_else(GroupName::generate_default);
 
         Self {
             name: group_name,
             pairs,
+            description,
             created_at: now,
             updated_at: now,
         }
@@ -216,6 +226,15 @@ impl RepositoryBranchGroup {
 
     pub fn pair_count(&self) -> usize {
         self.pairs.len()
+    }
+
+    pub fn set_description(&mut self, description: Option<String>) {
+        self.description = description;
+        self.touch();
+    }
+
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
     }
 }
 

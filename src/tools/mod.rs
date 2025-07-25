@@ -22,7 +22,8 @@ use crate::formatter::{
     },
     repository::repository_body_markdown_with_timezone,
     repository_branch_group::{
-        repository_branch_group_list_markdown, repository_branch_group_markdown_with_timezone,
+        repository_branch_group_list_with_descriptions_markdown,
+        repository_branch_group_markdown_with_timezone,
     },
 };
 use crate::github::GitHubClient;
@@ -738,14 +739,14 @@ impl GitInsightTools {
         profile_name: String,
     ) -> Result<CallToolResult, McpError> {
         let profile_name_str = profile_name.clone();
-        let groups = functions::profile::list_repository_branch_groups(&ProfileName::from(
-            profile_name.as_str(),
-        ))
+        let groups = functions::profile::list_repository_branch_groups_with_details(
+            &ProfileName::from(profile_name.as_str()),
+        )
         .await
         .map_err(|e| McpError::internal_error(e, None))?;
 
-        let group_names: Vec<crate::types::GroupName> = groups;
-        let formatted = repository_branch_group_list_markdown(&group_names, &profile_name_str);
+        let formatted =
+            repository_branch_group_list_with_descriptions_markdown(&groups, &profile_name_str);
         let content = Content::text(formatted.0);
 
         Ok(CallToolResult {
