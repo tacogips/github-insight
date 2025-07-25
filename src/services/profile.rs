@@ -282,11 +282,27 @@ impl ProfileService {
         group_name: Option<GroupName>,
         pairs: Vec<RepositoryBranchPair>,
     ) -> Result<GroupName, ProfileServiceError> {
+        self.register_repository_branch_group_with_description(
+            profile_name,
+            group_name,
+            pairs,
+            None,
+        )
+    }
+
+    /// Register a repository branch group to a profile with optional description
+    pub fn register_repository_branch_group_with_description(
+        &mut self,
+        profile_name: &ProfileName,
+        group_name: Option<GroupName>,
+        pairs: Vec<RepositoryBranchPair>,
+        description: Option<String>,
+    ) -> Result<GroupName, ProfileServiceError> {
         // Get or create profile
         let profile = self.get_or_create_profile(profile_name)?;
 
-        // Create the group
-        let group = RepositoryBranchGroup::new(group_name, pairs);
+        // Create the group with description
+        let group = RepositoryBranchGroup::new_with_description(group_name, pairs, description);
         let final_group_name = group.name.clone();
 
         // Check if group already exists

@@ -32,6 +32,34 @@ pub fn repository_branch_group_list_markdown(
     MarkdownContent(content)
 }
 
+/// Format a list of repository branch groups with descriptions into markdown
+pub fn repository_branch_group_list_with_descriptions_markdown(
+    groups: &[RepositoryBranchGroup],
+    profile_name: &str,
+) -> MarkdownContent {
+    let mut content = String::new();
+
+    if groups.is_empty() {
+        content.push_str(&format!(
+            "No repository branch groups found in profile '{}'",
+            profile_name
+        ));
+    } else {
+        content.push_str(&format!(
+            "Repository branch groups in profile '{}':",
+            profile_name
+        ));
+        for group in groups {
+            content.push_str(&format!("\n  - {}", group.name));
+            if let Some(description) = &group.description {
+                content.push_str(&format!(" - {}", description));
+            }
+        }
+    }
+
+    MarkdownContent(content)
+}
+
 /// Format a repository branch group into detailed markdown with timezone conversion
 pub fn repository_branch_group_markdown_with_timezone(
     group: &RepositoryBranchGroup,
@@ -45,6 +73,11 @@ pub fn repository_branch_group_markdown_with_timezone(
         group.name,
         format_datetime_with_timezone_offset(group.created_at, timezone)
     ));
+
+    // Description if available
+    if let Some(description) = &group.description {
+        content.push_str(&format!("\n*Description:* {}", description));
+    }
 
     // Repository branch pairs (format: repository_url | branch:branch_name)
     if !group.pairs.is_empty() {
@@ -73,6 +106,11 @@ pub fn repository_branch_group_markdown_with_timezone_light(
         group.name,
         format_datetime_with_timezone_offset(group.created_at, timezone)
     ));
+
+    // Description if available
+    if let Some(description) = &group.description {
+        content.push_str(&format!("\n*Description:* {}", description));
+    }
 
     // Pairs (format: repository_url | branch:branch_name)
     if !group.pairs.is_empty() {
