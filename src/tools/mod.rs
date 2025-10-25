@@ -407,7 +407,7 @@ impl GitInsightTools {
         &self,
         #[tool(param)]
         #[schemars(
-            description = "Search query text (optional, default: open issues and PRs). Supports GitHub search syntax. Examples: 'is:pr state:open', 'is:issue label:bug', 'authentication error', 'head:feature-branch', 'is:pr author:username', 'is:issue assignee:username', 'created:2024-01-01..2024-12-31'. Note: Any repo:owner/name specifications in the query will be overridden when searching specific repositories."
+            description = "Search query text (optional, default: open issues and PRs). Supports GitHub search syntax. Examples: 'is:pr state:open', 'is:issue label:bug', 'authentication error', 'head:feature-branch', 'is:pr author:username', 'is:issue assignee:username', 'created:2024-01-01..2024-12-31'. Note: Any repo:owner/name specifications in the query will be overridden when searching specific repositories. IMPORTANT: To search both issues and PRs, use space-separated qualifiers like 'is:issue is:pr' (NOT 'is:issue OR is:pr' - explicit OR operator is not supported in GitHub search API)."
         )]
         #[schemars(default = "default_search_query")]
         github_search_query: Option<String>,

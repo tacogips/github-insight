@@ -43,3 +43,29 @@ tasks:
     desc: Run the MCP inspector on the stdio server
     cmds:
       - npx @modelcontextprotocol/inspector result/bin/github-insight stdio
+
+  # CLI examples
+  cli-search-issues:
+    desc: Search for issues in test repository
+    cmds:
+      - cargo run --bin github-insight-cli -- search --profile default "is:issue"
+
+  cli-search-prs:
+    desc: Search for pull requests in test repository
+    cmds:
+      - cargo run --bin github-insight-cli -- search --profile default "is:pr"
+
+  cli-search-both:
+    desc: Search for both issues and PRs (space-separated, not OR)
+    cmds:
+      - cargo run --bin github-insight-cli -- search --profile default "is:issue is:pr"
+
+  cli-get-issue:
+    desc: Get detailed issue information by URL
+    cmds:
+      - cargo run --bin github-insight-cli -- get-issues --profile default https://github.com/tacogips/gitcodes-mcp-test-1/issues/1
+
+  cli-get-pr:
+    desc: Get detailed pull request information by URL
+    cmds:
+      - cargo run --bin github-insight-cli -- get-pull-requests --profile default https://github.com/tacogips/gitcodes-mcp-test-1/pull/15
