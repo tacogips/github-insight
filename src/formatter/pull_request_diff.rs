@@ -26,7 +26,7 @@ pub fn pull_request_diff_markdown(
     // Header with repository and PR number
     content.push_str(&format!(
         "## Pull Request: {}/pull/{}\n\n",
-        repository_id,
+        repository_id.full_name(),
         pr_number.value()
     ));
 
@@ -68,7 +68,8 @@ mod tests {
         let result = pull_request_diff_markdown(&repo_id, pr_number, diff);
 
         assert!(result.0.contains("## Pull Request: owner/repo/pull/456"));
-        // Should not have double newlines
-        assert!(!result.0.contains("\n\n```"));
+        // Should not have double newlines before closing code block
+        assert!(!result.0.ends_with("\n\n```\n"));
+        assert!(result.0.ends_with("\n```\n"));
     }
 }

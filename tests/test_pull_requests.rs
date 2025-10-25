@@ -787,7 +787,7 @@ async fn test_fetch_pull_request_diff() {
 
     println!(
         "Successfully fetched diff for PR #{}: {} bytes, {} lines",
-        pr_number.as_u64(),
+        pr_number.value(),
         diff.len(),
         diff.lines().count()
     );
@@ -860,7 +860,7 @@ async fn test_multi_resource_fetcher_pull_request_diffs() {
 
         println!(
             "Successfully fetched diff for PR #{}: {} bytes",
-            pr_number.as_u64(),
+            pr_number.value(),
             diff.len()
         );
     }
