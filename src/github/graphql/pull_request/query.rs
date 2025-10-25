@@ -13,6 +13,8 @@ pub struct PullRequestQueryLimitSize {
     comment_limit: u8,
     review_request_limit: u8,
     review_limit: u8,
+    review_thread_limit: u8,
+    review_thread_comment_limit: u8,
     event_limit: u8,
 }
 
@@ -24,6 +26,8 @@ impl Default for PullRequestQueryLimitSize {
             comment_limit: DEFAULT_LIMIT,
             review_request_limit: DEFAULT_LIMIT,
             review_limit: DEFAULT_LIMIT,
+            review_thread_limit: DEFAULT_LIMIT,
+            review_thread_comment_limit: DEFAULT_LIMIT,
             event_limit: DEFAULT_LIMIT,
         }
     }
@@ -36,6 +40,8 @@ pub fn pull_request_query_body(limit_size: PullRequestQueryLimitSize) -> String 
         comment_limit,
         review_request_limit,
         review_limit,
+        review_thread_limit,
+        review_thread_comment_limit,
         event_limit,
     } = limit_size;
     format!(
@@ -116,12 +122,43 @@ pub fn pull_request_query_body(limit_size: PullRequestQueryLimitSize) -> String 
                       }}
                       totalCount
                     }}
+                    reviewThreads(first: {}) {{
+                      nodes {{
+                        id
+                        isResolved
+                        isCollapsed
+                        path
+                        line
+                        originalLine
+                        diffSide
+                        comments(first: {}) {{
+                          nodes {{
+                            id
+                            body
+                            createdAt
+                            updatedAt
+                            path
+                            position
+                            originalPosition
+                            diffHunk
+                            url
+                            author {{
+                              login
+                            }}
+                          }}
+                          totalCount
+                        }}
+                      }}
+                      totalCount
+                    }}
                     {}"#,
         assignee_limit,
         review_request_limit,
         label_limit,
         comment_limit,
         review_limit,
+        review_thread_limit,
+        review_thread_comment_limit,
         timeline_items_query(event_limit)
     )
 }
