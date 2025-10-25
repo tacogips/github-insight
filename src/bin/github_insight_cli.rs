@@ -9,7 +9,8 @@ use github_insight::formatter::{
     project_body_markdown_with_timezone, project_resource_body_markdown_with_timezone,
     project_resource_body_markdown_with_timezone_light, pull_request_body_markdown_with_timezone,
     pull_request_body_markdown_with_timezone_light, repository_body_markdown_with_timezone,
-    repository_branch_group_list_markdown, repository_branch_group_markdown_with_timezone,
+    repository_branch_group_list_with_descriptions_markdown,
+    repository_branch_group_markdown_with_timezone,
 };
 
 /// Parse timezone if provided, otherwise use local timezone
@@ -143,6 +144,9 @@ enum Commands {
         /// Optional group name - if not provided, auto-generates with yyyymmdd-hash format
         #[arg(short = 'n', long)]
         group_name: Option<String>,
+        /// Optional description for the group
+        #[arg(short = 'd', long)]
+        description: Option<String>,
         /// Profile name for organizing groups (default: "default")
         #[arg(short, long, default_value = "default")]
         profile: String,
@@ -400,16 +404,18 @@ async fn main() -> Result<()> {
         Commands::RegisterGroup {
             pairs,
             group_name,
+            description,
             profile,
         } => {
             let parsed_pairs = RepositoryBranchPair::try_from_specifiers(&pairs)?;
             let group_name_opt = group_name.map(GroupName::from);
 
             let final_group_name = profile_service
-                .register_repository_branch_group(
+                .register_repository_branch_group_with_description(
                     &ProfileName::from(profile.as_str()),
                     group_name_opt,
                     parsed_pairs,
+                    description,
                 )
                 .map_err(|e| anyhow::anyhow!("Failed to register group: {}", e))?;
 
@@ -507,17 +513,29 @@ async fn main() -> Result<()> {
             );
         }
         Commands::ListBranchGroups { profile } => {
-            let groups = profile_service
+            let group_names = profile_service
                 .list_repository_branch_groups(&ProfileName::from(profile.as_str()))
                 .map_err(|e| anyhow::anyhow!("Failed to list groups: {}", e))?;
 
             match cli.format {
                 OutputFormat::Json => {
-                    let json_output = serde_json::to_string_pretty(&groups)?;
+                    let json_output = serde_json::to_string_pretty(&group_names)?;
                     println!("{}", json_output);
                 }
                 OutputFormat::Markdown => {
-                    let formatted = repository_branch_group_list_markdown(&groups, &profile);
+                    // Get full group details for description display
+                    let mut groups = Vec::new();
+                    for group_name in group_names {
+                        let group = profile_service
+                            .get_repository_branch_group(
+                                &ProfileName::from(profile.as_str()),
+                                &group_name,
+                            )
+                            .map_err(|e| anyhow::anyhow!("Failed to get group details: {}", e))?;
+                        groups.push(group);
+                    }
+                    let formatted =
+                        repository_branch_group_list_with_descriptions_markdown(&groups, &profile);
                     println!("{}", formatted.0);
                 }
             }

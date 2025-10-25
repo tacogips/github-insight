@@ -2,6 +2,9 @@
 //!
 //! These tests verify the ability to fetch pull requests by number from real GitHub repositories.
 //! Tests use the GITHUB_INSIGHT_GITHUB_TOKEN environment variable for authentication.
+//!
+//! Note: All tests in this file require GitHub authentication as they use GraphQL API.
+//! Run with: cargo test --features integration-tests
 
 use serial_test::serial;
 
@@ -16,6 +19,7 @@ use test_util::create_test_github_client;
 /// that the client can successfully retrieve 2 pull requests.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_fetch_multiple_pull_requests_by_numbers() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -76,6 +80,7 @@ async fn test_fetch_multiple_pull_requests_by_numbers() {
 /// and returns an empty result when given 0 PR numbers.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_fetch_pull_requests_empty_input() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -116,6 +121,7 @@ async fn test_fetch_pull_requests_empty_input() {
 /// This test verifies that the client returns an error when given PR numbers that don't exist.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_fetch_non_existent_pull_request() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -159,6 +165,7 @@ async fn test_fetch_non_existent_pull_request() {
 /// from multiple repositories concurrently.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_multi_resource_fetcher_pull_requests() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -243,6 +250,7 @@ async fn test_multi_resource_fetcher_pull_requests() {
 /// complex GitHub search syntax with multiple filters and operators.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_complex_search_queries_rust_repository() {
     let client = create_test_github_client();
     let rust_repo = RepositoryId::new("rust-lang".to_string(), "rust".to_string());
@@ -319,6 +327,7 @@ async fn test_complex_search_queries_rust_repository() {
 /// using various GitHub search operators and filters.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_complex_search_queries_react_repository() {
     let client = create_test_github_client();
     let react_repo = RepositoryId::new("facebook".to_string(), "react".to_string());
@@ -395,6 +404,7 @@ async fn test_complex_search_queries_react_repository() {
 /// in GitHub search syntax using VS Code repository.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_advanced_search_operators_vscode() {
     let client = create_test_github_client();
     let vscode_repo = RepositoryId::new("microsoft".to_string(), "vscode".to_string());
@@ -472,6 +482,7 @@ async fn test_advanced_search_operators_vscode() {
 /// and assignee patterns on the Kubernetes repository.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_user_filter_search_kubernetes() {
     let client = create_test_github_client();
     let k8s_repo = RepositoryId::new("kubernetes".to_string(), "kubernetes".to_string());
@@ -550,6 +561,7 @@ async fn test_user_filter_search_kubernetes() {
 /// on the Node.js repository.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_label_milestone_search_nodejs() {
     let client = create_test_github_client();
     let nodejs_repo = RepositoryId::new("nodejs".to_string(), "node".to_string());
@@ -630,6 +642,7 @@ async fn test_label_milestone_search_nodejs() {
 /// and boundary conditions properly.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_edge_cases_and_error_handling() {
     let client = create_test_github_client();
     let test_repo = RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());

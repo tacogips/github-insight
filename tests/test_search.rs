@@ -1,3 +1,11 @@
+//! Integration tests for GitHub search functionality
+//!
+//! These tests verify the ability to search for issues and pull requests from real GitHub repositories.
+//! Tests use the GITHUB_INSIGHT_GITHUB_TOKEN environment variable for authentication.
+//!
+//! Note: All tests in this file require GitHub authentication as they use GraphQL API.
+//! Run with: cargo test --features integration-tests
+
 use serial_test::serial;
 
 mod test_util;
@@ -10,6 +18,7 @@ use test_util::create_test_github_client;
 /// search for issues and pull requests using a general query.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_basic() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -18,8 +27,8 @@ async fn test_search_resources_basic() {
     let repository_id =
         RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
 
-    // Search for issues/PRs with "test" keyword
-    let query = SearchQuery::new("test".to_string());
+    // Search for issues/PRs (empty query will automatically add is:issue is:pr)
+    let query = SearchQuery::new("".to_string());
 
     // Fetch the search results
     let result = client
@@ -50,7 +59,7 @@ async fn test_search_resources_basic() {
     // IMPORTANT: Verify that we actually found some results to validate the search is working
     assert!(
         !search_results.is_empty(),
-        "Search should return at least some results for 'test' query in test repository. \
+        "Search should return at least some results (empty query adds is:issue is:pr automatically). \
         If this fails, the repository may be empty or the search isn't working properly."
     );
 
@@ -86,6 +95,7 @@ async fn test_search_resources_basic() {
 /// more complex queries with specific terms.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_with_specific_query() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -135,6 +145,7 @@ async fn test_search_resources_with_specific_query() {
 /// an empty query gracefully.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_empty_query() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -143,7 +154,7 @@ async fn test_search_resources_empty_query() {
     let repository_id =
         RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
 
-    // Search with empty query (should return all issues/PRs)
+    // Search with empty query (will automatically add is:issue is:pr)
     let query = SearchQuery::new("".to_string());
 
     // Fetch the search results
@@ -172,7 +183,7 @@ async fn test_search_resources_empty_query() {
         "Should not exceed requested limit of 3 results"
     );
 
-    // For empty query, we expect to get some results (all issues/PRs in the repo)
+    // For empty query, we expect to get some results (is:issue is:pr added automatically)
     assert!(
         !search_results.is_empty(),
         "Empty query search should return at least some results from the repository. \
@@ -211,6 +222,7 @@ async fn test_search_resources_empty_query() {
 /// without a real multi-page result set).
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_with_pagination() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -296,6 +308,7 @@ async fn test_search_resources_with_pagination() {
 /// searches in non-existent repositories gracefully.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_nonexistent_repo() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -339,6 +352,7 @@ async fn test_search_resources_nonexistent_repo() {
 /// search results to return only pull requests using the "is:pr" query.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_pull_requests_only() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -405,6 +419,7 @@ async fn test_search_resources_pull_requests_only() {
 /// search results to return only issues using the "is:issue" query.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_issues_only() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -468,6 +483,7 @@ async fn test_search_resources_issues_only() {
 /// both issues and pull requests when no type filter is applied.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_both_types() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -546,6 +562,7 @@ async fn test_search_resources_both_types() {
 /// with next_pager as Some when there are more results available.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_next_pager_some() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -555,7 +572,7 @@ async fn test_search_resources_next_pager_some() {
         RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
 
     // Search with a very small limit to likely trigger pagination
-    let query = SearchQuery::new("".to_string()); // Empty query to get all results
+    let query = SearchQuery::new("".to_string()); // Empty query will add is:issue is:pr automatically
 
     // Fetch the search results with a very small limit to force pagination
     let result = client
@@ -614,6 +631,7 @@ async fn test_search_resources_next_pager_some() {
 /// to fetch the next page and returns different results from the first page.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_pagination_next_page() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -622,7 +640,7 @@ async fn test_search_resources_pagination_next_page() {
     let repository_id =
         RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
 
-    // Search with empty query to get all results
+    // Search with empty query (will automatically add is:issue is:pr)
     let query = SearchQuery::new("".to_string());
 
     // First page - get only 1 result to force pagination
@@ -790,6 +808,7 @@ async fn test_search_resources_pagination_next_page() {
 /// it gets overwritten by the repository_id parameter in search_resources.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_repo_override() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();

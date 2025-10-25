@@ -28,38 +28,38 @@ impl SearchQuery {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::github::graphql::search::overwrite_repo_if_exists;
+    use crate::github::graphql::search::normalize_repo_search_query;
     use crate::types::RepositoryId;
 
     #[test]
-    fn test_overwrite_repo_if_exists() {
+    fn test_normalize_repo_search_query() {
         let repo_id = RepositoryId::new("newowner".to_string(), "newrepo".to_string());
 
         // Test with existing repo pattern
         let query = SearchQuery::new("repo:oldowner/oldrepo some search terms".to_string());
-        let result = overwrite_repo_if_exists(query, &repo_id);
+        let result = normalize_repo_search_query(query, &repo_id);
         assert_eq!(result.as_str(), "repo:newowner/newrepo some search terms");
 
         // Test with multiple repo patterns
         let query = SearchQuery::new("repo:first/repo some terms repo:second/repo".to_string());
-        let result = overwrite_repo_if_exists(query, &repo_id);
+        let result = normalize_repo_search_query(query, &repo_id);
         assert_eq!(result.as_str(), "repo:newowner/newrepo some terms");
 
         // Test without existing repo pattern
         let query = SearchQuery::new("some search terms".to_string());
-        let result = overwrite_repo_if_exists(query, &repo_id);
+        let result = normalize_repo_search_query(query, &repo_id);
         assert_eq!(result.as_str(), "repo:newowner/newrepo some search terms");
 
-        // Test with empty query
+        // Test with empty query - should add default qualifiers
         let query = SearchQuery::new("".to_string());
-        let result = overwrite_repo_if_exists(query, &repo_id);
-        assert_eq!(result.as_str(), "repo:newowner/newrepo");
+        let result = normalize_repo_search_query(query, &repo_id);
+        assert_eq!(result.as_str(), "repo:newowner/newrepo is:issue is:pr");
 
-        // Test with only repo pattern
+        // Test with only repo pattern - should add default qualifiers
         let repo_id = RepositoryId::new("test".to_string(), "test".to_string());
         let query = SearchQuery::new("repo:other/repo".to_string());
-        let result = overwrite_repo_if_exists(query, &repo_id);
-        assert_eq!(result.as_str(), "repo:test/test");
+        let result = normalize_repo_search_query(query, &repo_id);
+        assert_eq!(result.as_str(), "repo:test/test is:issue is:pr");
     }
 }
 

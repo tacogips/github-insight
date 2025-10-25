@@ -2,6 +2,9 @@
 //!
 //! These tests verify the ability to fetch project resources from real GitHub projects.
 //! Tests use the GITHUB_INSIGHT_GITHUB_TOKEN environment variable for authentication.
+//!
+//! Note: All tests in this file require GitHub authentication as they use GraphQL API.
+//! Run with: cargo test --features integration-tests
 
 use serial_test::serial;
 
@@ -16,6 +19,7 @@ use test_util::create_test_github_client;
 /// that the client can successfully retrieve project items.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_fetch_project_resources() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -111,6 +115,7 @@ async fn test_fetch_project_resources() {
 /// This test verifies that the client returns an error when given a project ID that doesn't exist.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_fetch_non_existent_project() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -148,6 +153,7 @@ async fn test_fetch_non_existent_project() {
 /// (issues, pull requests, draft issues).
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_fetch_project_resources_mixed_types() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -252,6 +258,7 @@ async fn test_fetch_project_resources_mixed_types() {
 /// project resources from a real GitHub project.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_multi_resource_fetcher_fetch_project_resources() {
     // Initialize GitHub client and create MultiResourceFetcher
     let client = create_test_github_client();
@@ -344,6 +351,7 @@ async fn test_multi_resource_fetcher_fetch_project_resources() {
 /// a project ID that doesn't exist.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_multi_resource_fetcher_non_existent_project() {
     // Initialize GitHub client and create MultiResourceFetcher
     let client = create_test_github_client();
@@ -382,6 +390,7 @@ async fn test_multi_resource_fetcher_non_existent_project() {
 /// that exist but have no resources.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_multi_resource_fetcher_empty_project() {
     // Initialize GitHub client and create MultiResourceFetcher
     let client = create_test_github_client();
@@ -435,6 +444,7 @@ async fn test_multi_resource_fetcher_empty_project() {
 /// with its metadata (title, description, timestamps) using the fetch_project function.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_fetch_project() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -508,6 +518,7 @@ async fn test_fetch_project() {
 /// a project that doesn't exist.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_fetch_non_existent_project_single() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();

@@ -22,7 +22,8 @@ use crate::formatter::{
     },
     repository::repository_body_markdown_with_timezone,
     repository_branch_group::{
-        repository_branch_group_list_markdown, repository_branch_group_markdown_with_timezone,
+        repository_branch_group_list_with_descriptions_markdown,
+        repository_branch_group_markdown_with_timezone,
     },
 };
 use crate::github::GitHubClient;
@@ -406,7 +407,7 @@ impl GitInsightTools {
         &self,
         #[tool(param)]
         #[schemars(
-            description = "Search query text (optional, default: open issues and PRs). Supports GitHub search syntax. Examples: 'is:pr state:open', 'is:issue label:bug', 'authentication error', 'head:feature-branch', 'is:pr author:username', 'is:issue assignee:username', 'created:2024-01-01..2024-12-31'. Note: Any repo:owner/name specifications in the query will be overridden when searching specific repositories."
+            description = "Search query text (optional, default: open issues and PRs). Supports GitHub search syntax. Examples: 'is:pr state:open', 'is:issue label:bug', 'authentication error', 'head:feature-branch', 'is:pr author:username', 'is:issue assignee:username', 'created:2024-01-01..2024-12-31'. Note: Any repo:owner/name specifications in the query will be overridden when searching specific repositories. IMPORTANT: To search both issues and PRs, use space-separated qualifiers like 'is:issue is:pr' (NOT 'is:issue OR is:pr' - explicit OR operator is not supported in GitHub search API)."
         )]
         #[schemars(default = "default_search_query")]
         github_search_query: Option<String>,
@@ -594,11 +595,21 @@ impl GitInsightTools {
             description = "Branch specifiers in format 'repo_url@branch'. Examples: ['https://github.com/owner/repo@main', 'https://github.com/owner/repo@develop']"
         )]
         pairs: Vec<String>,
+        #[tool(param)]
+        #[schemars(
+            description = "Optional description for the group. Example: 'Authentication feature implementation across repositories'"
+        )]
+        description: Option<String>,
     ) -> Result<CallToolResult, McpError> {
         let final_group_name =
-            functions::profile::register_repository_branch_group(profile_name, group_name, pairs)
-                .await
-                .map_err(|e| McpError::internal_error(e, None))?;
+            functions::profile::register_repository_branch_group_with_description(
+                profile_name,
+                group_name,
+                pairs,
+                description,
+            )
+            .await
+            .map_err(|e| McpError::internal_error(e, None))?;
 
         let content = Content::text(serde_json::to_string_pretty(&final_group_name).map_err(
             |e| McpError::internal_error(format!("Failed to serialize result: {}", e), None),
@@ -738,14 +749,14 @@ impl GitInsightTools {
         profile_name: String,
     ) -> Result<CallToolResult, McpError> {
         let profile_name_str = profile_name.clone();
-        let groups = functions::profile::list_repository_branch_groups(&ProfileName::from(
-            profile_name.as_str(),
-        ))
+        let groups = functions::profile::list_repository_branch_groups_with_details(
+            &ProfileName::from(profile_name.as_str()),
+        )
         .await
         .map_err(|e| McpError::internal_error(e, None))?;
 
-        let group_names: Vec<crate::types::GroupName> = groups;
-        let formatted = repository_branch_group_list_markdown(&group_names, &profile_name_str);
+        let formatted =
+            repository_branch_group_list_with_descriptions_markdown(&groups, &profile_name_str);
         let content = Content::text(formatted.0);
 
         Ok(CallToolResult {

@@ -4,11 +4,13 @@ Guidance for Claude Code when working with this codebase.
 
 ## Response Rules
 
-- Start first response with "I will continue thinking and providing output in English."
+**ALL responses throughout the session must follow these rules:**
+
 - Always respond in English regardless of user's language
-- Acknowledge reading CLAUDE.md in first response
-- Declare cargo commands use CARGO_TERM_QUIET=true
-- Begin with "Your instruction is {corrected English}" for English instructions
+- For first response only: Start with "I will continue thinking and providing output in English."
+- For first response only: Acknowledge reading CLAUDE.md
+- For every response: When user provides non-English instructions, begin with "Your instruction is {corrected English translation}"
+- For every response: When mentioning cargo commands, declare they use CARGO_TERM_QUIET=true
 
 ### Task Management
 
@@ -194,10 +196,12 @@ Parameters:
 - `profile_name`: Profile to register the group to (e.g., 'default', 'work')
 - `group_name`: Optional group name (auto-generated if not provided)
 - `pairs`: Array of branch specifiers in format "repo_url@branch"
+- `description`: Optional description for the group
 
 Examples:
-- `{"profile_name": "default", "group_name": "feature-auth", "pairs": ["https://github.com/owner/frontend@feature-auth", "https://github.com/owner/backend@feature-auth"]}`
-- `{"profile_name": "work", "pairs": ["https://github.com/company/api@main", "https://github.com/company/web@main"]}`
+- `{"profile_name": "default", "group_name": "feature-auth", "pairs": ["https://github.com/owner/frontend@feature-auth", "https://github.com/owner/backend@feature-auth"], "description": "Authentication feature implementation across repositories"}`
+- `{"profile_name": "work", "pairs": ["https://github.com/company/api@main", "https://github.com/company/web@main"], "description": "Production release branches"}`
+- `{"profile_name": "default", "group_name": "hotfix-security", "pairs": ["https://github.com/owner/backend@hotfix-security"]}`
 
 Output: Returns the final group name as JSON string.
 
@@ -355,7 +359,7 @@ GITHUB_INSIGHT_GITHUB_TOKEN=ghp_token cargo run --bin github-insight-cli -- [OPT
 
 #### Repository Branch Group Management
 
-- `register-group`: Create a new repository branch group with branches in specified profile
+- `register-group`: Create a new repository branch group with branches and optional description in specified profile
 - `unregister-group`: Remove a repository branch group completely from specified profile
 - `list-branch-groups`: Display all repository branch groups in a specified profile
 - `show-group`: Show detailed information about a specific repository branch group

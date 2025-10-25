@@ -17,5 +17,5 @@ pub fn create_test_github_client() -> GitHubClient {
     let token = env::var("GITHUB_INSIGHT_GITHUB_TOKEN").ok();
     // Use shorter timeout for tests to avoid long delays
     GitHubClient::new(token, Some(Duration::from_secs(15)))
-        .expect("Failed to create GitHub client for testing")
+        .expect("Failed to create GitHub client for testing. Note: GraphQL API requires authentication even for public repositories.")
 }

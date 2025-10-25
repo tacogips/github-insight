@@ -204,6 +204,16 @@ pub async fn register_repository_branch_group(
     group_name: Option<String>,
     pairs: Vec<String>,
 ) -> Result<String, String> {
+    register_repository_branch_group_with_description(profile_name, group_name, pairs, None).await
+}
+
+/// Register a repository branch group to a profile with description
+pub async fn register_repository_branch_group_with_description(
+    profile_name: String,
+    group_name: Option<String>,
+    pairs: Vec<String>,
+    description: Option<String>,
+) -> Result<String, String> {
     let config_dir = default_profile_config_dir()
         .map_err(|e| format!("Failed to get config directory: {}", e))?;
 
@@ -218,7 +228,12 @@ pub async fn register_repository_branch_group(
         .map_err(|e| format!("Failed to parse repository branch pairs: {}", e))?;
 
     let final_group_name = service
-        .register_repository_branch_group(&profile_name, group_name_opt, parsed_pairs)
+        .register_repository_branch_group_with_description(
+            &profile_name,
+            group_name_opt,
+            parsed_pairs,
+            description,
+        )
         .map_err(|e| format!("Failed to register repository branch group: {}", e))?;
 
     Ok(final_group_name.value().to_string())
@@ -390,4 +405,29 @@ pub async fn cleanup_repository_branch_groups(
         .collect();
 
     Ok(removed_group_names)
+}
+
+/// List all repository branch groups with full details
+pub async fn list_repository_branch_groups_with_details(
+    profile_name: &ProfileName,
+) -> Result<Vec<RepositoryBranchGroup>, String> {
+    let config_dir = default_profile_config_dir()
+        .map_err(|e| format!("Failed to get config directory: {}", e))?;
+
+    let service = ProfileService::new(config_dir)
+        .map_err(|e| format!("Failed to create profile service: {}", e))?;
+
+    let group_names = service
+        .list_repository_branch_groups(&profile_name)
+        .map_err(|e| format!("Failed to list repository branch groups: {}", e))?;
+
+    let mut groups = Vec::new();
+    for group_name in group_names {
+        let group = service
+            .get_repository_branch_group(&profile_name, &group_name)
+            .map_err(|e| format!("Failed to get repository branch group: {}", e))?;
+        groups.push(group);
+    }
+
+    Ok(groups)
 }
