@@ -69,3 +69,8 @@ tasks:
     desc: Get detailed pull request information by URL
     cmds:
       - cargo run --bin github-insight-cli -- get-pull-requests --profile default https://github.com/tacogips/gitcodes-mcp-test-1/pull/15
+
+  cli-get-pr-diff:
+    desc: Get pull request code diff by URL
+    cmds:
+      - cargo run --bin github-insight-cli -- get-pull-request-diffs https://github.com/tacogips/gitcodes-mcp-test-1/pull/5

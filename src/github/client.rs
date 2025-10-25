@@ -25,6 +25,7 @@ use crate::types::ProjectResource;
 
 use anyhow::{Context, Result};
 use octocrab::Octocrab;
+use reqwest;
 use serde::{Deserialize, Serialize};
 use tokio::time::Duration;
 
@@ -51,14 +52,15 @@ pub trait GraphQLExecutor {
 #[derive(Clone)]
 pub struct GitHubClient {
     pub(crate) client: octocrab::Octocrab,
+    github_token: Option<String>,
 }
 
 impl GitHubClient {
     pub fn new(token: Option<String>, timeout: Option<Duration>) -> Result<Self> {
         let mut builder = Octocrab::builder();
 
-        if let Some(token) = token {
-            builder = builder.personal_token(token);
+        if let Some(ref token_str) = token {
+            builder = builder.personal_token(token_str.clone());
         }
 
         let timeout_duration = timeout.unwrap_or_else(|| Duration::from_secs(10));
@@ -77,7 +79,10 @@ impl GitHubClient {
 
         let client = builder.build().context("Failed to build GitHub client")?;
 
-        Ok(Self { client })
+        Ok(Self {
+            client,
+            github_token: token,
+        })
     }
 
     /// Searches for issues and pull requests using GitHub's Search API via GraphQL.
@@ -805,6 +810,84 @@ impl GitHubClient {
             .context(format!("Failed to convert repository: {}", repository_id))?;
 
         Ok(repository)
+    }
+
+    /// Fetches pull request diff in unified diff format using REST API
+    ///
+    /// This method retrieves the complete diff for a pull request using GitHub's REST API
+    /// with the `application/vnd.github.v3.diff` media type. This provides the full unified
+    /// diff format without size limitations that GraphQL API has.
+    ///
+    /// # Arguments
+    ///
+    /// * `repository_id` - The repository identifier containing owner and repository name
+    /// * `pull_request_number` - The pull request number to fetch diff for
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result` containing the diff as a String in unified diff format
+    ///
+    /// # Errors
+    ///
+    /// This method can return errors in the following cases:
+    /// - REST API request failures (network issues, authentication problems)
+    /// - Pull request not found or access permission issues
+    /// - Rate limiting by GitHub API
+    /// - Timeout errors if the request takes longer than configured timeout
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use github_insight::github::client::GitHubClient;
+    /// use github_insight::types::{RepositoryId, PullRequestNumber};
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = GitHubClient::new(Some("token".to_string()), None)?;
+    /// let repo_id = RepositoryId::new("rust-lang".to_string(), "rust".to_string());
+    /// let pr_number = PullRequestNumber::new(12345);
+    ///
+    /// // Fetch pull request diff
+    /// let diff = client.fetch_pull_request_diff(repo_id, pr_number).await?;
+    ///
+    /// println!("Diff:\n{}", diff);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn fetch_pull_request_diff(
+        &self,
+        repository_id: crate::types::RepositoryId,
+        pull_request_number: crate::types::PullRequestNumber,
+    ) -> Result<String> {
+        let url = format!(
+            "https://api.github.com/repos/{}/{}/pulls/{}",
+            repository_id.owner().as_str(),
+            repository_id.repo_name().as_str(),
+            pull_request_number.value()
+        );
+
+        // Create a reqwest client and make a custom request with diff Accept header
+        let req_client = reqwest::Client::new();
+        let mut request = req_client
+            .get(&url)
+            .header("Accept", "application/vnd.github.v3.diff")
+            .header("User-Agent", "github-insight");
+
+        // Add authorization header if token is available
+        if let Some(token) = &self.github_token {
+            request = request.header("Authorization", format!("Bearer {}", token));
+        }
+
+        let response = request
+            .send()
+            .await
+            .context("Failed to fetch pull request diff")?;
+
+        let diff = response
+            .text()
+            .await
+            .context("Failed to read diff response body")?;
+
+        Ok(diff)
     }
 }
 

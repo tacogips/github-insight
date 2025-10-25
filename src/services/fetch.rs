@@ -159,4 +159,65 @@ impl MultiResourceFetcher {
     pub async fn fetch_project(&self, project_id: ProjectId) -> Result<Project> {
         self.github_client.fetch_project(project_id).await
     }
+
+    /// Fetches pull request diffs by repository
+    ///
+    /// # Arguments
+    ///
+    /// * `pr_numbers_of_repositories` - Vec of (repo_id, pr_number) tuples
+    ///
+    /// # Returns
+    ///
+    /// Returns a BTreeMap of repository IDs to vectors of (PR number, diff) tuples
+    pub async fn fetch_pull_request_diffs(
+        &self,
+        pr_numbers_of_repositories: Vec<(RepositoryId, Vec<PullRequestNumber>)>,
+    ) -> Result<BTreeMap<RepositoryId, Vec<(PullRequestNumber, String)>>> {
+        // Fetch diffs from all repositories concurrently
+        let fetch_futures = pr_numbers_of_repositories
+            .into_iter()
+            .map(|(repo_id, pr_numbers)| {
+                let github_client = self.github_client.clone();
+
+                async move {
+                    let mut repo_diffs = Vec::new();
+
+                    // Fetch each PR diff sequentially to avoid overwhelming the API
+                    for pr_number in pr_numbers {
+                        match github_client
+                            .fetch_pull_request_diff(repo_id.clone(), pr_number)
+                            .await
+                        {
+                            Ok(diff) => {
+                                repo_diffs.push((pr_number, diff));
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    "Failed to fetch diff for PR #{} from {}: {}",
+                                    pr_number.value(),
+                                    repo_id,
+                                    e
+                                );
+                                // Continue to next PR instead of failing completely
+                            }
+                        }
+                    }
+
+                    Ok::<_, anyhow::Error>((repo_id, repo_diffs))
+                }
+            });
+
+        let results: Vec<Result<(RepositoryId, Vec<(PullRequestNumber, String)>)>> =
+            stream::iter(fetch_futures)
+                .buffer_unordered(10) // Process up to 10 repositories concurrently
+                .collect()
+                .await;
+
+        let diffs_by_repo: BTreeMap<RepositoryId, Vec<(PullRequestNumber, String)>> = results
+            .into_iter()
+            .filter_map(|result| result.ok())
+            .collect();
+
+        Ok(diffs_by_repo)
+    }
 }

@@ -38,3 +38,41 @@ pub async fn get_pull_requests_details(
         .fetch_pull_requests(pull_request_ids_of_repositories)
         .await
 }
+
+pub async fn get_pull_request_code_diffs(
+    github_client: &GitHubClient,
+    pull_request_urls: Vec<PullRequestUrl>,
+) -> Result<BTreeMap<RepositoryId, Vec<(PullRequestNumber, String)>>> {
+    // Convert URLs to PullRequestIds and group by repository
+    let mut pull_request_ids_by_repo: BTreeMap<RepositoryId, Vec<PullRequestNumber>> =
+        BTreeMap::new();
+
+    for url in pull_request_urls {
+        match PullRequestId::parse_url(&url) {
+            Ok(pull_request_id) => {
+                let pull_request_number = PullRequestNumber::new(pull_request_id.number);
+                pull_request_ids_by_repo
+                    .entry(pull_request_id.git_repository)
+                    .or_default()
+                    .push(pull_request_number);
+            }
+            Err(e) => {
+                return Err(anyhow::anyhow!(
+                    "Failed to parse pull request URL {}: {}",
+                    url,
+                    e
+                ));
+            }
+        }
+    }
+
+    // Convert to the format expected by fetch_pull_request_diffs
+    let pull_request_ids_of_repositories: Vec<(RepositoryId, Vec<PullRequestNumber>)> =
+        pull_request_ids_by_repo.into_iter().collect();
+
+    // Create MultiResourceFetcher and fetch diffs
+    let fetcher = MultiResourceFetcher::new(github_client.clone());
+    fetcher
+        .fetch_pull_request_diffs(pull_request_ids_of_repositories)
+        .await
+}
