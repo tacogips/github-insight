@@ -19,7 +19,7 @@ use crate::github::graphql::pull_request::query::{
     MultiplePullRequestVariable, multi_pull_reqeust_query,
 };
 use crate::github::graphql::repository::query::{RepositoryVariable, repository_query};
-use crate::github::graphql::search::overwrite_repo_if_exists;
+use crate::github::graphql::search::normalize_repo_search_query;
 use crate::github::graphql::search::{SearchVariable, search_query};
 use crate::types::ProjectResource;
 
@@ -178,7 +178,7 @@ impl GitHubClient {
         let per_page_value = per_page.unwrap_or(DEFAULT_SEARCH_RESULT_PER_PAGE); //default
         let has_cursor = cursor.is_some();
 
-        let query = overwrite_repo_if_exists(query, &repository_id);
+        let query = normalize_repo_search_query(query, &repository_id);
 
         let graphql_query = search_query(
             IssueQueryLimitSize::default(),

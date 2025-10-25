@@ -27,8 +27,8 @@ async fn test_search_resources_basic() {
     let repository_id =
         RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
 
-    // Search for issues/PRs with "test" keyword
-    let query = SearchQuery::new("test".to_string());
+    // Search for issues/PRs (empty query will automatically add is:issue is:pr)
+    let query = SearchQuery::new("".to_string());
 
     // Fetch the search results
     let result = client
@@ -59,7 +59,7 @@ async fn test_search_resources_basic() {
     // IMPORTANT: Verify that we actually found some results to validate the search is working
     assert!(
         !search_results.is_empty(),
-        "Search should return at least some results for 'test' query in test repository. \
+        "Search should return at least some results (empty query adds is:issue is:pr automatically). \
         If this fails, the repository may be empty or the search isn't working properly."
     );
 
@@ -154,7 +154,7 @@ async fn test_search_resources_empty_query() {
     let repository_id =
         RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
 
-    // Search with empty query (should return all issues/PRs)
+    // Search with empty query (will automatically add is:issue is:pr)
     let query = SearchQuery::new("".to_string());
 
     // Fetch the search results
@@ -183,7 +183,7 @@ async fn test_search_resources_empty_query() {
         "Should not exceed requested limit of 3 results"
     );
 
-    // For empty query, we expect to get some results (all issues/PRs in the repo)
+    // For empty query, we expect to get some results (is:issue is:pr added automatically)
     assert!(
         !search_results.is_empty(),
         "Empty query search should return at least some results from the repository. \
@@ -572,7 +572,7 @@ async fn test_search_resources_next_pager_some() {
         RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
 
     // Search with a very small limit to likely trigger pagination
-    let query = SearchQuery::new("".to_string()); // Empty query to get all results
+    let query = SearchQuery::new("".to_string()); // Empty query will add is:issue is:pr automatically
 
     // Fetch the search results with a very small limit to force pagination
     let result = client
@@ -640,7 +640,7 @@ async fn test_search_resources_pagination_next_page() {
     let repository_id =
         RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
 
-    // Search with empty query to get all results
+    // Search with empty query (will automatically add is:issue is:pr)
     let query = SearchQuery::new("".to_string());
 
     // First page - get only 1 result to force pagination
