@@ -99,6 +99,8 @@ opt-level = 3 # Optimize build scripts
 default = []
 # Features used for testing
 this_test_is_disabled = []
+# Feature for tests that require GitHub authentication (GraphQL API)
+integration-tests = []
 
 # cargo-dist configuration
 [workspace.metadata.dist]

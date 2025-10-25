@@ -18,9 +18,14 @@ tasks:
       - cargo clippy
 
   test:
-    desc: Run tests
+    desc: Run tests (excluding integration tests)
     cmds:
       - cargo test
+
+  integration-test:
+    desc: Run integration tests (requires GITHUB_INSIGHT_GITHUB_TOKEN)
+    cmds:
+      - cargo test --features integration-tests
 
   # Run servers
   stdio:

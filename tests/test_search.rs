@@ -1,3 +1,11 @@
+//! Integration tests for GitHub search functionality
+//!
+//! These tests verify the ability to search for issues and pull requests from real GitHub repositories.
+//! Tests use the GITHUB_INSIGHT_GITHUB_TOKEN environment variable for authentication.
+//!
+//! Note: All tests in this file require GitHub authentication as they use GraphQL API.
+//! Run with: cargo test --features integration-tests
+
 use serial_test::serial;
 
 mod test_util;
@@ -10,6 +18,7 @@ use test_util::create_test_github_client;
 /// search for issues and pull requests using a general query.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_basic() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -86,6 +95,7 @@ async fn test_search_resources_basic() {
 /// more complex queries with specific terms.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_with_specific_query() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -135,6 +145,7 @@ async fn test_search_resources_with_specific_query() {
 /// an empty query gracefully.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_empty_query() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -211,6 +222,7 @@ async fn test_search_resources_empty_query() {
 /// without a real multi-page result set).
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_with_pagination() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -296,6 +308,7 @@ async fn test_search_resources_with_pagination() {
 /// searches in non-existent repositories gracefully.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_nonexistent_repo() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -339,6 +352,7 @@ async fn test_search_resources_nonexistent_repo() {
 /// search results to return only pull requests using the "is:pr" query.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_pull_requests_only() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -405,6 +419,7 @@ async fn test_search_resources_pull_requests_only() {
 /// search results to return only issues using the "is:issue" query.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_issues_only() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -468,6 +483,7 @@ async fn test_search_resources_issues_only() {
 /// both issues and pull requests when no type filter is applied.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_both_types() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -546,6 +562,7 @@ async fn test_search_resources_both_types() {
 /// with next_pager as Some when there are more results available.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_next_pager_some() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -614,6 +631,7 @@ async fn test_search_resources_next_pager_some() {
 /// to fetch the next page and returns different results from the first page.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_pagination_next_page() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -790,6 +808,7 @@ async fn test_search_resources_pagination_next_page() {
 /// it gets overwritten by the repository_id parameter in search_resources.
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_search_resources_repo_override() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();

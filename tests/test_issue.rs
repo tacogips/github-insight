@@ -14,8 +14,12 @@ use test_util::create_test_github_client;
 ///
 /// This test fetches multiple issues from the tacogips/gitcodes-mcp-test-1 repository to verify
 /// that the client can successfully retrieve 2 issues.
+///
+/// Note: This test requires GitHub authentication as it uses GraphQL API.
+/// Run with: cargo test --features integration-tests
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_fetch_multiple_issues_by_numbers() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();
@@ -96,8 +100,12 @@ async fn test_fetch_issues_empty_input() {
 /// Test handling of non-existent issue numbers
 ///
 /// This test verifies that the client returns an error when given issue numbers that don't exist.
+///
+/// Note: This test requires GitHub authentication as it uses GraphQL API.
+/// Run with: cargo test --features integration-tests
 #[tokio::test]
 #[serial]
+#[cfg(feature = "integration-tests")]
 async fn test_fetch_non_existent_issue() {
     // Initialize GitHub client with token (if available) and reasonable timeout
     let client = create_test_github_client();

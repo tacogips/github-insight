@@ -595,11 +595,21 @@ impl GitInsightTools {
             description = "Branch specifiers in format 'repo_url@branch'. Examples: ['https://github.com/owner/repo@main', 'https://github.com/owner/repo@develop']"
         )]
         pairs: Vec<String>,
+        #[tool(param)]
+        #[schemars(
+            description = "Optional description for the group. Example: 'Authentication feature implementation across repositories'"
+        )]
+        description: Option<String>,
     ) -> Result<CallToolResult, McpError> {
         let final_group_name =
-            functions::profile::register_repository_branch_group(profile_name, group_name, pairs)
-                .await
-                .map_err(|e| McpError::internal_error(e, None))?;
+            functions::profile::register_repository_branch_group_with_description(
+                profile_name,
+                group_name,
+                pairs,
+                description,
+            )
+            .await
+            .map_err(|e| McpError::internal_error(e, None))?;
 
         let content = Content::text(serde_json::to_string_pretty(&final_group_name).map_err(
             |e| McpError::internal_error(format!("Failed to serialize result: {}", e), None),
