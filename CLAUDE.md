@@ -149,13 +149,19 @@ Get pull requests by their URLs from specified repositories. Returns detailed pu
 Examples:
 - Get specific pull requests: `{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}`
 
-#### 4. get_project_details
+#### 4. get_pull_request_code_diff
+Get pull request code diffs by their URLs. Returns complete unified diff format for each pull request using GitHub REST API. The diff includes all file changes in standard unified diff format, making it suitable for code review and analysis.
+
+Examples:
+- Get specific pull request diffs: `{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}`
+
+#### 5. get_project_details
 Get project details by their URLs. Returns detailed project information formatted as markdown with comprehensive metadata including title, description, creation/update dates, project node ID, and other project properties. The project node ID can be used for project updates.
 
 Examples:
 - Get specific projects: `{"project_urls": ["https://github.com/users/username/projects/1", "https://github.com/orgs/orgname/projects/5"]}`
 
-#### 5. get_repository_details
+#### 6. get_repository_details
 Get repository details by URLs. Returns detailed repository information formatted as markdown with comprehensive metadata including URL, description, default branch, mentionable users, labels, milestones, releases (with configurable limit), and timestamps.
 
 Examples:
@@ -163,7 +169,7 @@ Examples:
 - Get specific repositories: `{"repository_urls": ["https://github.com/rust-lang/rust", "https://github.com/tokio-rs/tokio"]}`
 - Get repositories with custom release limit: `{"repository_urls": ["https://github.com/rust-lang/rust"], "showing_release_limit": 5}`
 
-#### 6. search_in_repositories
+#### 7. search_in_repositories
 Search across multiple repositories for issues, PRs, and projects. Comprehensive search across multiple resource types with support for specific repository targeting and advanced pagination.
 
 Examples:
@@ -171,13 +177,13 @@ Examples:
 - Search with default query: `{"repository_urls": ["https://github.com/tokio-rs/tokio"]}`
 - Search with light format: `{"github_search_query": "async await", "repository_urls": ["https://github.com/tokio-rs/tokio"], "output_option": "light", "limit": 20}`
 
-#### 7. list_repository_urls_in_current_profile
+#### 8. list_repository_urls_in_current_profile
 List all repository URLs registered in the current profile. Returns repository IDs and URLs for repositories managed by the profile.
 
 Examples:
 - List all repository URLs in current profile: `{}`
 
-#### 8. list_project_urls_in_current_profile
+#### 9. list_project_urls_in_current_profile
 List all project URLs registered in the current profile. Returns project IDs and URLs for projects managed by the profile.
 
 Examples:
@@ -298,7 +304,8 @@ Output: Returns JSON array of removed groups with their details.
 
 3. **Specific Resource Access**:
    - Use get_issues_details to get detailed issue information with comments
-   - Use get_pull_request_details to get detailed pull request information with comments
+   - Use get_pull_request_details to get detailed pull request information with comments and code review threads
+   - Use get_pull_request_code_diff to get complete unified diff for code changes
 
 4. **Project Management**:
    - Use get_project_resources to access project boards and associated resources

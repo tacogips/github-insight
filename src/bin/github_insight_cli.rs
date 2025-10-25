@@ -249,6 +249,11 @@ enum Commands {
         /// GitHub pull request URLs to fetch detailed information from - supports multiple URLs for batch processing
         urls: Vec<String>,
     },
+    /// Fetch pull request code diffs in unified diff format by URLs
+    GetPullRequestDiffs {
+        /// GitHub pull request URLs to fetch diffs from - supports multiple URLs for batch processing
+        urls: Vec<String>,
+    },
     /// Fetch detailed repository information including metadata, statistics, releases (with configurable limit), and configuration by URLs
     GetRepositories {
         /// GitHub repository URLs to fetch detailed information from - supports multiple URLs for batch processing
@@ -643,6 +648,17 @@ async fn main() -> Result<()> {
             )
             .await?;
         }
+        Commands::GetPullRequestDiffs { urls } => {
+            let pull_request_urls: Vec<PullRequestUrl> =
+                urls.iter().map(|url| PullRequestUrl(url.clone())).collect();
+            handle_get_pull_request_diffs_command(
+                pull_request_urls,
+                &cli.format,
+                &github_token,
+                cli.request_timeout.map(Duration::from_secs),
+            )
+            .await?;
+        }
         Commands::GetRepositories {
             urls,
             showing_release_limit,
@@ -958,6 +974,46 @@ async fn handle_get_pull_requests_command(
             }
             if !found_prs {
                 println!("No pull requests found for the provided URLs.");
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Handle get pull request diffs command
+async fn handle_get_pull_request_diffs_command(
+    pull_request_urls: Vec<PullRequestUrl>,
+    format: &OutputFormat,
+    github_token: &Option<String>,
+    request_timeout: Option<Duration>,
+) -> Result<()> {
+    let github_client = GitHubClient::new(github_token.clone(), request_timeout)
+        .map_err(|e| anyhow::anyhow!("Failed to create GitHub client: {}", e))?;
+
+    let diffs_by_repo =
+        functions::pull_request::get_pull_request_code_diffs(&github_client, pull_request_urls)
+            .await?;
+
+    // Output results
+    match format {
+        OutputFormat::Json => {
+            let json_output = serde_json::to_string_pretty(&diffs_by_repo)?;
+            println!("{}", json_output);
+        }
+        OutputFormat::Markdown => {
+            use github_insight::formatter::pull_request_diff_markdown;
+            let mut found_diffs = false;
+            for (repo_id, pr_diffs) in diffs_by_repo {
+                for (pr_number, diff) in pr_diffs {
+                    let formatted = pull_request_diff_markdown(&repo_id, pr_number, &diff);
+                    println!("{}", formatted.0);
+                    println!("---");
+                    found_diffs = true;
+                }
+            }
+            if !found_diffs {
+                println!("No pull request diffs found for the provided URLs.");
             }
         }
     }

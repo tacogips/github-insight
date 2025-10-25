@@ -728,3 +728,140 @@ async fn test_search_edge_cases_and_error_handling() {
         Err(e) => println!("Edge case 4: Conflicting query failed as expected: {}", e),
     }
 }
+
+/// Test fetching pull request diff using REST API
+///
+/// This test verifies that the client can successfully fetch the complete unified diff
+/// for a pull request using GitHub's REST API.
+#[tokio::test]
+#[serial]
+#[cfg(feature = "integration-tests")]
+async fn test_fetch_pull_request_diff() {
+    // Initialize GitHub client with token (if available) and reasonable timeout
+    let client = create_test_github_client();
+
+    // Create repository ID for the test repository
+    let repository_id =
+        RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
+
+    // Test with PR #5 from the test repository
+    let pr_number = PullRequestNumber::new(5);
+
+    // Fetch the pull request diff
+    let result = client
+        .fetch_pull_request_diff(repository_id.clone(), pr_number)
+        .await;
+
+    // Verify the request succeeded
+    assert!(
+        result.is_ok(),
+        "Failed to fetch pull request diff: {:?}",
+        result
+    );
+
+    let diff = result.unwrap();
+
+    // Verify the diff is not empty
+    assert!(!diff.is_empty(), "Diff should not be empty");
+
+    // Verify the diff contains unified diff format markers
+    assert!(
+        diff.contains("diff --git"),
+        "Diff should contain 'diff --git' marker"
+    );
+    assert!(
+        diff.contains("@@"),
+        "Diff should contain '@@ ... @@' markers"
+    );
+
+    // Verify the diff contains additions or deletions
+    let has_changes = diff.lines().any(|line| {
+        let trimmed = line.trim_start();
+        (trimmed.starts_with('+') && !trimmed.starts_with("+++"))
+            || (trimmed.starts_with('-') && !trimmed.starts_with("---"))
+    });
+    assert!(
+        has_changes,
+        "Diff should contain at least one addition or deletion"
+    );
+
+    println!(
+        "Successfully fetched diff for PR #{}: {} bytes, {} lines",
+        pr_number.as_u64(),
+        diff.len(),
+        diff.lines().count()
+    );
+
+    // Print first 20 lines of the diff for visual verification
+    println!("First 20 lines of diff:");
+    for (i, line) in diff.lines().take(20).enumerate() {
+        println!("{:3}: {}", i + 1, line);
+    }
+}
+
+/// Test fetching multiple pull request diffs using MultiResourceFetcher
+///
+/// This test verifies that the MultiResourceFetcher can successfully fetch diffs
+/// from multiple pull requests.
+#[tokio::test]
+#[serial]
+#[cfg(feature = "integration-tests")]
+async fn test_multi_resource_fetcher_pull_request_diffs() {
+    // Initialize GitHub client with token (if available) and reasonable timeout
+    let client = create_test_github_client();
+    let fetcher = MultiResourceFetcher::new(client);
+
+    // Create repository ID for the test repository
+    let repo = RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
+
+    // Prepare PR numbers to fetch diffs for
+    let pr_numbers = vec![PullRequestNumber::new(5)];
+
+    let pr_requests = vec![(repo.clone(), pr_numbers.clone())];
+
+    // Fetch pull request diffs
+    let result = fetcher.fetch_pull_request_diffs(pr_requests).await;
+
+    // Verify the request succeeded
+    assert!(
+        result.is_ok(),
+        "Failed to fetch pull request diffs: {:?}",
+        result
+    );
+
+    let diffs_by_repo = result.unwrap();
+
+    // Verify we got results for the repository
+    assert!(
+        diffs_by_repo.contains_key(&repo),
+        "Expected to find diffs for the repository"
+    );
+
+    let pr_diffs = &diffs_by_repo[&repo];
+
+    // Verify we got diffs for all requested PRs
+    assert_eq!(
+        pr_diffs.len(),
+        pr_numbers.len(),
+        "Expected diffs for all requested PRs"
+    );
+
+    // Verify each diff
+    for (pr_number, diff) in pr_diffs {
+        assert!(
+            pr_numbers.contains(pr_number),
+            "PR number should be in the requested list"
+        );
+        assert!(!diff.is_empty(), "Diff should not be empty");
+        assert!(
+            diff.contains("diff --git"),
+            "Diff should contain unified diff format markers"
+        );
+
+        println!(
+            "Successfully fetched diff for PR #{}: {} bytes",
+            pr_number.as_u64(),
+            diff.len()
+        );
+    }
+}

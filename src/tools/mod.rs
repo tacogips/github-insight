@@ -20,6 +20,7 @@ use crate::formatter::{
     pull_request::{
         pull_request_body_markdown_with_timezone, pull_request_body_markdown_with_timezone_light,
     },
+    pull_request_diff::pull_request_diff_markdown,
     repository::repository_body_markdown_with_timezone,
     repository_branch_group::{
         repository_branch_group_list_with_descriptions_markdown,
@@ -273,6 +274,53 @@ impl GitInsightTools {
         if content_vec.is_empty() {
             content_vec.push(Content::text(
                 "No pull requests found for the provided URLs.".to_string(),
+            ));
+        }
+
+        Ok(CallToolResult {
+            content: content_vec,
+            is_error: Some(false),
+        })
+    }
+
+    #[tool(
+        description = "Get pull request code diffs by their URLs. Returns complete unified diff format for each pull request using GitHub REST API. The diff includes all file changes in standard unified diff format, making it suitable for code review and analysis."
+    )]
+    async fn get_pull_request_code_diff(
+        &self,
+        #[tool(param)]
+        #[schemars(
+            description = "Pull request URLs to fetch diffs for. Examples: ['https://github.com/rust-lang/rust/pull/98765', 'https://github.com/tokio-rs/tokio/pull/4321']. To get pull request URLs from repositories in the current profile, use list_repository_urls_in_current_profile to get repository URLs and pass them to this parameter."
+        )]
+        pull_request_urls: Vec<String>,
+    ) -> Result<CallToolResult, McpError> {
+        let github_client = GitHubClient::new(self.github_token.clone(), None).map_err(|e| {
+            McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
+        })?;
+
+        // Convert strings to PullRequestUrl
+        let pull_request_urls: Vec<PullRequestUrl> =
+            pull_request_urls.into_iter().map(PullRequestUrl).collect();
+
+        // Fetch pull request diffs using the new function
+        let diffs_by_repo =
+            functions::pull_request::get_pull_request_code_diffs(&github_client, pull_request_urls)
+                .await
+                .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+
+        // Format all diffs as markdown using the formatter
+        let mut content_vec = Vec::new();
+
+        for (repo_id, pr_diffs) in diffs_by_repo {
+            for (pr_number, diff) in pr_diffs {
+                let formatted = pull_request_diff_markdown(&repo_id, pr_number, &diff);
+                content_vec.push(Content::text(formatted.0));
+            }
+        }
+
+        if content_vec.is_empty() {
+            content_vec.push(Content::text(
+                "No pull request diffs found for the provided URLs.".to_string(),
             ));
         }
 
@@ -877,7 +925,16 @@ Examples:
 {{"name": "get_pull_request_details", "arguments": {{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}}}}
 ```
 
-### 4. get_project_details
+### 4. get_pull_request_code_diff
+Get pull request code diffs by their URLs. Returns complete unified diff format for each pull request using GitHub REST API. The diff includes all file changes in standard unified diff format, making it suitable for code review and analysis.
+
+Examples:
+```json
+// Get specific pull request diffs by URLs
+{{"name": "get_pull_request_code_diff", "arguments": {{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}}}}
+```
+
+### 5. get_project_details
 Get project details by their URLs. Returns detailed project information formatted as markdown with comprehensive metadata including title, description, creation/update dates, project node ID, and other project properties. The project node ID can be used for project updates.
 
 Examples:
@@ -886,7 +943,7 @@ Examples:
 {{"name": "get_project_details", "arguments": {{"project_urls": ["https://github.com/users/username/projects/1", "https://github.com/orgs/orgname/projects/5"]}}}}
 ```
 
-### 5. get_repository_details
+### 6. get_repository_details
 Get repository details by URLs. Returns detailed repository information formatted as markdown array with comprehensive metadata including description, statistics, and configuration details. Releases section can be limited using the showing_release_limit parameter.
 
 Examples:
@@ -901,7 +958,7 @@ Examples:
 {{"name": "get_repository_details", "arguments": {{"repository_urls": ["https://github.com/rust-lang/rust"], "showing_release_limit": 5}}}}
 ```
 
-### 6. search_in_repositories
+### 7. search_in_repositories
 Search across multiple repositories for issues, PRs, and projects. Comprehensive search across multiple resource types with support for specific repository targeting and advanced pagination.
 
 Examples:
@@ -928,7 +985,7 @@ Examples:
 }}}}
 ```
 
-### 7. list_repository_urls_in_current_profile
+### 8. list_repository_urls_in_current_profile
 List all repository URLs registered in the current profile. Returns an array of repository URLs for repositories managed by the profile.
 
 Example return value: ["https://github.com/rust-lang/rust", "https://github.com/tokio-rs/tokio"]
@@ -939,7 +996,7 @@ Examples:
 {{"name": "list_repository_urls_in_current_profile", "arguments": {{}}}}
 ```
 
-### 8. list_project_urls_in_current_profile
+### 9. list_project_urls_in_current_profile
 List all project URLs registered in the current profile. Returns an array of project URLs for projects managed by the profile.
 
 Example return value: ["https://github.com/users/username/projects/1", "https://github.com/orgs/orgname/projects/5"]
@@ -950,7 +1007,7 @@ Examples:
 {{"name": "list_project_urls_in_current_profile", "arguments": {{}}}}
 ```
 
-### 9. register_repository_branch_group
+### 10. register_repository_branch_group
 Register a repository branch group to a profile for managing collections of branches. Returns the final group name (either provided or auto-generated).
 
 Examples:
@@ -962,7 +1019,7 @@ Examples:
 {{"name": "register_repository_branch_group", "arguments": {{"profile_name": "default", "group_name": "feature-branches", "pairs": ["https://github.com/owner/repo@feature-x"]}}}}
 ```
 
-### 10. unregister_repository_branch_group
+### 11. unregister_repository_branch_group
 Remove a repository branch group from a profile. Returns the removed group information.
 
 Examples:
@@ -1038,7 +1095,8 @@ Examples:
 
 3. **Specific Resource Access**:
    - Use get_issues_details to get detailed issue information with comments
-   - Use get_pull_request_details to get detailed pull request information with comments
+   - Use get_pull_request_details to get detailed pull request information with comments and code review threads
+   - Use get_pull_request_code_diff to get complete unified diff for code changes
 
 4. **Project Management**:
    - Use get_project_resources to access project boards and associated resources
