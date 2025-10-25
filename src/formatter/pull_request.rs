@@ -161,6 +161,57 @@ pub fn pull_request_body_markdown_with_timezone(
         content.push_str("(No comments)\n\n");
     }
 
+    // Code review comments (inline comments on files)
+    if !pr.review_thread_comments.is_empty() {
+        content.push_str("## code review comments\n");
+        for review_comment in &pr.review_thread_comments {
+            let author_display = match &review_comment.author {
+                Some(user) => user.as_str().to_string(),
+                None => "Unknown ⚠️".to_string(),
+            };
+
+            // File path and line information
+            if let Some(path) = &review_comment.path {
+                content.push_str(&format!("### File: {}", path));
+                if let Some(line) = review_comment.line {
+                    content.push_str(&format!(" (line {})", line));
+                }
+                content.push('\n');
+            }
+
+            content.push_str(&format!("author: {}\n", author_display));
+            content.push_str(&format!(
+                "created: {}\n",
+                format_datetime_with_timezone_offset(review_comment.created_at, timezone)
+            ));
+            content.push_str(&format!(
+                "updated: {}\n",
+                format_datetime_with_timezone_offset(review_comment.updated_at, timezone)
+            ));
+
+            // Status
+            if review_comment.is_resolved {
+                content.push_str("status: ✅ Resolved\n");
+            } else {
+                content.push_str("status: 🔴 Unresolved\n");
+            }
+
+            // URL
+            if let Some(url) = &review_comment.url {
+                content.push_str(&format!("url: {}\n", url));
+            }
+
+            content.push_str(&format!("\n{}\n\n", review_comment.body));
+
+            // Diff hunk for context
+            if let Some(diff_hunk) = &review_comment.diff_hunk {
+                content.push_str("```diff\n");
+                content.push_str(diff_hunk);
+                content.push_str("\n```\n\n");
+            }
+        }
+    }
+
     MarkdownContent(content)
 }
 
@@ -192,7 +243,13 @@ pub fn pull_request_body_markdown_with_timezone_light(
     }
 
     // Comment count
-    content.push_str(&format!("**Comments:** {}\n", pr.comments.len()));
+    let total_comments = pr.comments.len() + pr.review_thread_comments.len();
+    content.push_str(&format!(
+        "**Comments:** {} (general: {}, code reviews: {})\n",
+        total_comments,
+        pr.comments.len(),
+        pr.review_thread_comments.len()
+    ));
 
     // Linked resources
     if !pr.linked_resources.is_empty() {

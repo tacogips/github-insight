@@ -167,6 +167,7 @@ pub struct PullRequest {
     pub deletions: u32,
     pub changed_files: u32,
     pub comments: Vec<PullRequestComment>,
+    pub review_thread_comments: Vec<ReviewThreadComment>,
     pub milestone_id: Option<u64>,
     pub draft: bool,
     pub mergeable: Option<bool>,
@@ -227,4 +228,23 @@ impl PullRequestComment {
             updated_at,
         }
     }
+}
+
+/// Represents an inline code review comment on a GitHub pull request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReviewThreadComment {
+    pub id: String,
+    pub body: String,
+    pub author: Option<User>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub path: Option<String>,
+    pub position: Option<i32>,
+    pub original_position: Option<i32>,
+    pub diff_hunk: Option<String>,
+    pub url: Option<String>,
+    pub is_resolved: bool,
+    pub line: Option<i32>,
+    pub original_line: Option<i32>,
+    pub diff_side: Option<String>,
 }

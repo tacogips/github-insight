@@ -67,6 +67,8 @@ pub struct PullRequestNode {
     pub is_draft: Option<bool>,
     pub comments: CommentsConnection,
     pub reviews: Option<ReviewsConnection>,
+    #[serde(rename = "reviewThreads")]
+    pub review_threads: Option<ReviewThreadsConnection>,
     #[serde(rename = "timelineItems")]
     pub timeline_items: Option<TimelineItemsConnection>,
 }
@@ -166,6 +168,17 @@ impl TryFrom<(PullRequestNode, crate::types::RepositoryId)> for PullRequest {
             ));
         }
 
+        // Extract from PR review thread comments
+        if let Some(ref review_threads) = pull_request_node.review_threads {
+            for thread in &review_threads.nodes {
+                for comment in &thread.comments.nodes {
+                    text_linked_resources.extend(
+                        IssueOrPullrequestId::extract_resource_url_from_text(&comment.body),
+                    );
+                }
+            }
+        }
+
         // Merge timeline-based and text-based results, prioritizing timeline data
         for text_resource in text_linked_resources {
             if !linked_resources.contains(&text_resource) {
@@ -186,21 +199,58 @@ impl TryFrom<(PullRequestNode, crate::types::RepositoryId)> for PullRequest {
             .collect();
         let comments = comments?;
 
+        // Parse review thread comments from GraphQL response
+        let mut review_thread_comments = Vec::new();
+        if let Some(review_threads) = pull_request_node.review_threads.as_ref() {
+            for thread in &review_threads.nodes {
+                for comment_node in &thread.comments.nodes {
+                    let review_comment = crate::types::ReviewThreadComment {
+                        id: comment_node.id.clone(),
+                        body: comment_node.body.clone(),
+                        author: comment_node
+                            .author
+                            .as_ref()
+                            .map(|a| User::from(a.login.clone())),
+                        created_at: comment_node.created_at,
+                        updated_at: comment_node.updated_at,
+                        path: comment_node.path.clone(),
+                        position: comment_node.position,
+                        original_position: comment_node.original_position,
+                        diff_hunk: comment_node.diff_hunk.clone(),
+                        url: comment_node.url.clone(),
+                        is_resolved: thread.is_resolved,
+                        line: thread.line,
+                        original_line: thread.original_line,
+                        diff_side: thread.diff_side.clone(),
+                    };
+                    review_thread_comments.push(review_comment);
+                }
+            }
+        }
+
         // Extract reviewers from review data
-        let reviewers: Vec<User> = pull_request_node
-            .reviews
-            .as_ref()
-            .map(|reviews| {
-                reviews
-                    .nodes
-                    .iter()
-                    .filter_map(|review| review.author.as_ref().map(|author| author.login.clone()))
-                    .collect::<std::collections::HashSet<_>>()
-                    .into_iter()
-                    .map(User::from)
-                    .collect()
-            })
-            .unwrap_or_default();
+        let mut reviewers_set = std::collections::HashSet::new();
+
+        if let Some(reviews) = pull_request_node.reviews.as_ref() {
+            for review in &reviews.nodes {
+                if let Some(author) = review.author.as_ref() {
+                    reviewers_set.insert(author.login.clone());
+                }
+            }
+        }
+
+        // Also extract reviewers from review threads
+        if let Some(review_threads) = pull_request_node.review_threads.as_ref() {
+            for thread in &review_threads.nodes {
+                for comment in &thread.comments.nodes {
+                    if let Some(author) = comment.author.as_ref() {
+                        reviewers_set.insert(author.login.clone());
+                    }
+                }
+            }
+        }
+
+        let reviewers: Vec<User> = reviewers_set.into_iter().map(User::from).collect();
 
         Ok(PullRequest {
             pull_request_id: git_pull_request_id,
@@ -227,6 +277,7 @@ impl TryFrom<(PullRequestNode, crate::types::RepositoryId)> for PullRequest {
             deletions: pull_request_node.deletions.unwrap_or(0) as u32,
             changed_files: pull_request_node.changed_files.unwrap_or(0) as u32,
             comments,
+            review_thread_comments,
             milestone_id: milestone_number,
             draft: pull_request_node.is_draft.unwrap_or(false),
             mergeable: pull_request_node
@@ -260,6 +311,48 @@ pub struct ReviewRequestsConnection {
     pub nodes: Vec<ReviewRequestNode>,
     #[serde(rename = "totalCount")]
     pub total_count: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReviewThreadsConnection {
+    pub nodes: Vec<ReviewThreadNode>,
+    #[serde(rename = "totalCount")]
+    pub total_count: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewThreadNode {
+    pub id: String,
+    pub is_resolved: bool,
+    pub is_collapsed: bool,
+    pub path: String,
+    pub line: Option<i32>,
+    pub original_line: Option<i32>,
+    pub diff_side: Option<String>,
+    pub comments: ReviewThreadCommentsConnection,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReviewThreadCommentsConnection {
+    pub nodes: Vec<ReviewThreadCommentNode>,
+    #[serde(rename = "totalCount")]
+    pub total_count: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewThreadCommentNode {
+    pub id: String,
+    pub body: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub path: Option<String>,
+    pub position: Option<i32>,
+    pub original_position: Option<i32>,
+    pub diff_hunk: Option<String>,
+    pub url: Option<String>,
+    pub author: Option<Author>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
