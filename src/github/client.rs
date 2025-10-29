@@ -889,6 +889,197 @@ impl GitHubClient {
 
         Ok(diff)
     }
+
+    /// Fetches the list of files changed in a pull request using GitHub REST API.
+    ///
+    /// This method retrieves file metadata for all changed files in a pull request,
+    /// returning only metadata (filename, status, additions, deletions, URLs, etc.)
+    /// without the patch/diff content. This provides a lightweight way to get the
+    /// list of changed files, and you can then fetch individual file diffs using
+    /// `fetch_pull_request_file_content` for files of interest.
+    ///
+    /// # Arguments
+    ///
+    /// * `repository_id` - The repository identifier containing owner and repository name
+    /// * `pull_request_number` - The pull request number to fetch files for
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result` containing a Vec of `PullRequestFile` with metadata (patch field is always None)
+    ///
+    /// # Errors
+    ///
+    /// This method can return errors in the following cases:
+    /// - REST API request failures (network issues, authentication problems)
+    /// - Pull request not found or access permission issues
+    /// - Rate limiting by GitHub API
+    /// - Timeout errors if the request takes longer than configured timeout
+    /// - JSON deserialization errors if the response format is unexpected
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use github_insight::github::client::GitHubClient;
+    /// use github_insight::types::{RepositoryId, PullRequestNumber};
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = GitHubClient::new(Some("token".to_string()), None)?;
+    /// let repo_id = RepositoryId::new("rust-lang".to_string(), "rust".to_string());
+    /// let pr_number = PullRequestNumber::new(12345);
+    ///
+    /// // Fetch file list (lightweight, no patch content)
+    /// let files = client.fetch_pull_request_files(repo_id, pr_number).await?;
+    /// for file in &files {
+    ///     println!("File: {} ({}, +{} -{} changes)",
+    ///              file.filename, file.status, file.additions, file.deletions);
+    ///
+    ///     // Get individual file diff if needed
+    ///     let patch = client.fetch_pull_request_file_content(&file.contents_url).await?;
+    ///     println!("Patch:\n{}", patch);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn fetch_pull_request_files(
+        &self,
+        repository_id: crate::types::RepositoryId,
+        pull_request_number: crate::types::PullRequestNumber,
+    ) -> Result<Vec<crate::types::PullRequestFile>> {
+        let url = format!(
+            "https://api.github.com/repos/{}/{}/pulls/{}/files",
+            repository_id.owner().as_str(),
+            repository_id.repo_name().as_str(),
+            pull_request_number.value()
+        );
+
+        // Build request with standard JSON Accept header
+        let req_client = reqwest::Client::new();
+        let mut request = req_client
+            .get(&url)
+            .header("Accept", "application/vnd.github.v3+json")
+            .header("User-Agent", "github-insight");
+
+        // Add authorization header if token is available
+        if let Some(token) = &self.github_token {
+            request = request.header("Authorization", format!("Bearer {}", token));
+        }
+
+        let response = request
+            .send()
+            .await
+            .context("Failed to fetch pull request files")?;
+
+        let mut files: Vec<crate::types::PullRequestFile> = response
+            .json()
+            .await
+            .context("Failed to parse pull request files response")?;
+
+        // Always remove patch content to reduce memory usage
+        // Use fetch_pull_request_file_content() to get individual file diffs
+        for file in &mut files {
+            file.patch = None;
+        }
+
+        Ok(files)
+    }
+
+    /// Fetches the diff content for a specific file in a pull request.
+    ///
+    /// This method retrieves the unified diff patch for a single file using either
+    /// the contents_url from a PullRequestFile, or by constructing the URL from
+    /// repository and file information. This allows fetching individual file diffs
+    /// on demand after getting the file list with `fetch_pull_request_files`.
+    ///
+    /// # Arguments
+    ///
+    /// * `repository_id` - The repository identifier containing owner and repository name
+    /// * `pull_request_number` - The pull request number
+    /// * `file_path` - The file path relative to repository root
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result` containing the diff patch as a String, or None if the file
+    /// has no patch (e.g., binary files, very large files)
+    ///
+    /// # Errors
+    ///
+    /// This method can return errors in the following cases:
+    /// - REST API request failures (network issues, authentication problems)
+    /// - File not found in the pull request
+    /// - Rate limiting by GitHub API
+    /// - Timeout errors if the request takes longer than configured timeout
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use github_insight::github::client::GitHubClient;
+    /// use github_insight::types::{RepositoryId, PullRequestNumber};
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let client = GitHubClient::new(Some("token".to_string()), None)?;
+    /// let repo_id = RepositoryId::new("rust-lang".to_string(), "rust".to_string());
+    /// let pr_number = PullRequestNumber::new(12345);
+    ///
+    /// // Get file list first
+    /// let files = client.fetch_pull_request_files(repo_id.clone(), pr_number).await?;
+    ///
+    /// // Fetch diff for a specific file
+    /// if let Some(file) = files.first() {
+    ///     let patch = client.fetch_pull_request_file_content(
+    ///         repo_id,
+    ///         pr_number,
+    ///         &file.filename
+    ///     ).await?;
+    ///
+    ///     if let Some(diff) = patch {
+    ///         println!("Diff for {}:\n{}", file.filename, diff);
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn fetch_pull_request_file_content(
+        &self,
+        repository_id: crate::types::RepositoryId,
+        pull_request_number: crate::types::PullRequestNumber,
+        file_path: &str,
+    ) -> Result<Option<String>> {
+        // First, get all files to find the one we're looking for
+        let url = format!(
+            "https://api.github.com/repos/{}/{}/pulls/{}/files",
+            repository_id.owner().as_str(),
+            repository_id.repo_name().as_str(),
+            pull_request_number.value()
+        );
+
+        let req_client = reqwest::Client::new();
+        let mut request = req_client
+            .get(&url)
+            .header("Accept", "application/vnd.github.v3+json")
+            .header("User-Agent", "github-insight");
+
+        if let Some(token) = &self.github_token {
+            request = request.header("Authorization", format!("Bearer {}", token));
+        }
+
+        let response = request
+            .send()
+            .await
+            .context("Failed to fetch pull request files")?;
+
+        let files: Vec<crate::types::PullRequestFile> = response
+            .json()
+            .await
+            .context("Failed to parse pull request files response")?;
+
+        // Find the file and return its patch
+        let file = files
+            .into_iter()
+            .find(|f| f.filename == file_path)
+            .ok_or_else(|| anyhow::anyhow!("File '{}' not found in pull request", file_path))?;
+
+        Ok(file.patch)
+    }
 }
 
 impl GraphQLExecutor for GitHubClient {

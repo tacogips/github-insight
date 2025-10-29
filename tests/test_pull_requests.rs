@@ -865,3 +865,213 @@ async fn test_multi_resource_fetcher_pull_request_diffs() {
         );
     }
 }
+
+/// Test fetching pull request files list
+///
+/// This test verifies that the client can successfully fetch the list of changed files
+/// in a pull request. The files list contains only metadata, no patch content.
+#[tokio::test]
+#[serial]
+#[cfg(feature = "integration-tests")]
+async fn test_fetch_pull_request_files() {
+    // Initialize GitHub client with token (if available) and reasonable timeout
+    let client = create_test_github_client();
+
+    // Create repository ID for the test repository
+    let repository_id =
+        RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
+
+    // Test with PR #5 from the test repository
+    let pr_number = PullRequestNumber::new(5);
+
+    // Fetch the pull request files
+    let result = client
+        .fetch_pull_request_files(repository_id.clone(), pr_number)
+        .await;
+
+    // Verify the request succeeded
+    assert!(
+        result.is_ok(),
+        "Failed to fetch pull request files: {:?}",
+        result
+    );
+
+    let files = result.unwrap();
+
+    // Verify we got some files
+    assert!(!files.is_empty(), "Files list should not be empty");
+
+    // Verify file metadata is present
+    for file in &files {
+        assert!(!file.filename.is_empty(), "Filename should not be empty");
+        assert!(!file.status.is_empty(), "Status should not be empty");
+        assert!(!file.sha.is_empty(), "SHA should not be empty");
+
+        // Verify patch is always None (use fetch_pull_request_file_content for patches)
+        assert!(
+            file.patch.is_none(),
+            "Patch should always be None in file list"
+        );
+
+        println!(
+            "File: {} ({}, +{} -{} changes)",
+            file.filename, file.status, file.additions, file.deletions
+        );
+    }
+
+    println!(
+        "Successfully fetched {} files for PR #{}",
+        files.len(),
+        pr_number.value()
+    );
+}
+
+/// Test fetching individual file content from pull request
+///
+/// This test verifies that the client can successfully fetch the diff content
+/// for a specific file in a pull request.
+#[tokio::test]
+#[serial]
+#[cfg(feature = "integration-tests")]
+async fn test_fetch_pull_request_file_content() {
+    // Initialize GitHub client with token (if available) and reasonable timeout
+    let client = create_test_github_client();
+
+    // Create repository ID for the test repository
+    let repository_id =
+        RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
+
+    // Test with PR #5 from the test repository
+    let pr_number = PullRequestNumber::new(5);
+
+    // First, get the list of files
+    let files = client
+        .fetch_pull_request_files(repository_id.clone(), pr_number)
+        .await
+        .expect("Failed to fetch file list");
+
+    assert!(!files.is_empty(), "Files list should not be empty");
+
+    // Get the first file to test with
+    let test_file = &files[0];
+    println!("Testing with file: {}", test_file.filename);
+
+    // Fetch the content for this specific file
+    let result = client
+        .fetch_pull_request_file_content(repository_id.clone(), pr_number, &test_file.filename)
+        .await;
+
+    // Verify the request succeeded
+    assert!(result.is_ok(), "Failed to fetch file content: {:?}", result);
+
+    let patch_opt = result.unwrap();
+
+    // Some files might not have patches (e.g., binary files, very large files)
+    if let Some(patch) = patch_opt {
+        assert!(!patch.is_empty(), "Patch should not be empty if present");
+
+        // Verify patch contains diff markers
+        assert!(
+            patch.contains("@@"),
+            "Patch should contain '@@ ... @@' markers"
+        );
+
+        println!(
+            "File: {} ({}, +{} -{} changes)",
+            test_file.filename, test_file.status, test_file.additions, test_file.deletions
+        );
+        println!("Patch size: {} bytes", patch.len());
+
+        // Print first few lines of the patch for verification
+        println!("First 5 lines of patch:");
+        for (i, line) in patch.lines().take(5).enumerate() {
+            println!("  {}: {}", i + 1, line);
+        }
+
+        println!(
+            "Successfully fetched file content for {} in PR #{}",
+            test_file.filename,
+            pr_number.value()
+        );
+    } else {
+        println!(
+            "File {} has no patch content (binary or very large file)",
+            test_file.filename
+        );
+    }
+}
+
+/// Test complete workflow: fetch file list then individual file diffs
+///
+/// This test demonstrates the recommended workflow: first fetch file list (lightweight)
+/// to get file metadata, then fetch diffs for specific files of interest.
+#[tokio::test]
+#[serial]
+#[cfg(feature = "integration-tests")]
+async fn test_pull_request_files_workflow() {
+    // Initialize GitHub client with token (if available) and reasonable timeout
+    let client = create_test_github_client();
+
+    // Create repository ID for the test repository
+    let repository_id =
+        RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
+
+    // Test with PR #5 from the test repository
+    let pr_number = PullRequestNumber::new(5);
+
+    // Step 1: Fetch file list (lightweight, no patch content)
+    let files = client
+        .fetch_pull_request_files(repository_id.clone(), pr_number)
+        .await
+        .expect("Failed to fetch file list");
+
+    assert!(!files.is_empty(), "Should have at least one file");
+
+    println!("Step 1: Fetched {} files", files.len());
+    for file in &files {
+        println!(
+            "  - {} ({}, +{} -{} changes)",
+            file.filename, file.status, file.additions, file.deletions
+        );
+        assert!(file.patch.is_none(), "Patch should always be None");
+    }
+
+    // Step 2: Fetch diff for a specific file of interest
+    let target_file = &files[0];
+    println!("\nStep 2: Fetching diff for {}", target_file.filename);
+
+    let patch_opt = client
+        .fetch_pull_request_file_content(repository_id.clone(), pr_number, &target_file.filename)
+        .await
+        .expect("Failed to fetch file content");
+
+    // Step 3: Process the file diff
+    if let Some(patch) = patch_opt {
+        println!("\nStep 3: Processing file diff:");
+        println!("  Filename: {}", target_file.filename);
+        println!("  Status: {}", target_file.status);
+        println!("  Additions: {}", target_file.additions);
+        println!("  Deletions: {}", target_file.deletions);
+        println!("  Patch size: {} bytes", patch.len());
+        println!("  Patch preview (first 10 lines):");
+        for (i, line) in patch.lines().take(10).enumerate() {
+            println!("    {}: {}", i + 1, line);
+        }
+
+        // Verify patch format
+        assert!(
+            patch.contains("@@"),
+            "Patch should contain unified diff markers"
+        );
+    } else {
+        println!(
+            "\nStep 3: File {} has no patch (binary or very large file)",
+            target_file.filename
+        );
+    }
+
+    println!(
+        "\nWorkflow completed: Successfully fetched file list and individual file diff for PR #{}",
+        pr_number.value()
+    );
+}

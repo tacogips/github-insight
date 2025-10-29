@@ -248,3 +248,35 @@ pub struct ReviewThreadComment {
     pub original_line: Option<i32>,
     pub diff_side: Option<String>,
 }
+
+/// Represents a file changed in a GitHub pull request
+///
+/// This structure contains metadata about a file changed in a PR, including
+/// the file path, status (added/modified/removed), and optionally the patch/diff content.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PullRequestFile {
+    /// The SHA hash identifying this file version
+    pub sha: String,
+    /// The file path relative to repository root
+    pub filename: String,
+    /// The file status: "added", "removed", "modified", "renamed", "copied", "changed", "unchanged"
+    pub status: String,
+    /// Number of additions in this file
+    pub additions: u32,
+    /// Number of deletions in this file
+    pub deletions: u32,
+    /// Total number of changes (additions + deletions)
+    pub changes: u32,
+    /// URL to view the blob in GitHub
+    pub blob_url: String,
+    /// Raw URL to download the file content
+    pub raw_url: String,
+    /// Contents URL for the GitHub API
+    pub contents_url: String,
+    /// The unified diff patch for this file (optional, may not be included for large files)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub patch: Option<String>,
+    /// Previous filename (only present if file was renamed)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_filename: Option<String>,
+}
