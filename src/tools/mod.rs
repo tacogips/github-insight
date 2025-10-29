@@ -333,6 +333,64 @@ impl GitInsightTools {
     }
 
     #[tool(
+        description = "Get the diff content of a specific file from a pull request. Returns the unified diff patch for the specified file. Optionally supports line range filtering to get specific portions of the diff."
+    )]
+    async fn get_pull_request_diff_contents(
+        &self,
+        #[tool(param)]
+        #[schemars(
+            description = "Pull request URL. Example: 'https://github.com/rust-lang/rust/pull/98765'. To get pull request URLs from repositories in the current profile, use list_repository_urls_in_current_profile to get repository URLs and pass them to this parameter."
+        )]
+        pull_request_url: String,
+        #[tool(param)]
+        #[schemars(
+            description = "File path within the repository. Example: 'src/main.rs', 'README.md'"
+        )]
+        file_path: String,
+        #[tool(param)]
+        #[schemars(
+            description = "Optional starting line number (1-indexed, inclusive). If not specified, starts from the first line."
+        )]
+        #[schemars(default)]
+        start_line_no: Option<u32>,
+        #[tool(param)]
+        #[schemars(
+            description = "Optional ending line number (1-indexed, inclusive). If not specified, goes to the last line."
+        )]
+        #[schemars(default)]
+        end_line_no: Option<u32>,
+    ) -> Result<CallToolResult, McpError> {
+        let github_client = GitHubClient::new(self.github_token.clone(), None).map_err(|e| {
+            McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
+        })?;
+
+        // Convert string to PullRequestUrl
+        let pull_request_url = PullRequestUrl(pull_request_url);
+
+        // Fetch the diff content
+        let diff_content = functions::pull_request::get_pull_request_diff_contents(
+            &github_client,
+            pull_request_url,
+            file_path.clone(),
+            start_line_no,
+            end_line_no,
+        )
+        .await
+        .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+
+        // Format as markdown code block
+        let formatted = format!(
+            "## Diff for file: {}\n\n```diff\n{}\n```",
+            file_path, diff_content
+        );
+
+        Ok(CallToolResult {
+            content: vec![Content::text(formatted)],
+            is_error: Some(false),
+        })
+    }
+
+    #[tool(
         description = "Get repository details by URLs. Returns detailed repository information formatted as markdown with comprehensive metadata including URL, description, default branch, mentionable users, labels, milestones, releases (with configurable limit), and timestamps."
     )]
     async fn get_repository_details(
@@ -936,7 +994,19 @@ Examples:
 {{"name": "get_pull_request_code_diff_stats", "arguments": {{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}}}}
 ```
 
-### 5. get_project_details
+### 5. get_pull_request_diff_contents
+Get the diff content of a specific file from a pull request. Returns the unified diff patch for the specified file. Supports optional line range filtering to retrieve specific portions of the diff.
+
+Examples:
+```json
+// Get entire diff for a specific file
+{{"name": "get_pull_request_diff_contents", "arguments": {{"pull_request_url": "https://github.com/rust-lang/rust/pull/98765", "file_path": "src/main.rs"}}}}
+
+// Get diff for specific line range (lines 10-50)
+{{"name": "get_pull_request_diff_contents", "arguments": {{"pull_request_url": "https://github.com/rust-lang/rust/pull/98765", "file_path": "src/lib.rs", "start_line_no": 10, "end_line_no": 50}}}}
+```
+
+### 6. get_project_details
 Get project details by their URLs. Returns detailed project information formatted as markdown with comprehensive metadata including title, description, creation/update dates, project node ID, and other project properties. The project node ID can be used for project updates.
 
 Examples:
@@ -945,7 +1015,7 @@ Examples:
 {{"name": "get_project_details", "arguments": {{"project_urls": ["https://github.com/users/username/projects/1", "https://github.com/orgs/orgname/projects/5"]}}}}
 ```
 
-### 6. get_repository_details
+### 7. get_repository_details
 Get repository details by URLs. Returns detailed repository information formatted as markdown array with comprehensive metadata including description, statistics, and configuration details. Releases section can be limited using the showing_release_limit parameter.
 
 Examples:
@@ -960,7 +1030,7 @@ Examples:
 {{"name": "get_repository_details", "arguments": {{"repository_urls": ["https://github.com/rust-lang/rust"], "showing_release_limit": 5}}}}
 ```
 
-### 7. search_in_repositories
+### 8. search_in_repositories
 Search across multiple repositories for issues, PRs, and projects. Comprehensive search across multiple resource types with support for specific repository targeting and advanced pagination.
 
 Examples:
@@ -987,7 +1057,7 @@ Examples:
 }}}}
 ```
 
-### 8. list_repository_urls_in_current_profile
+### 9. list_repository_urls_in_current_profile
 List all repository URLs registered in the current profile. Returns an array of repository URLs for repositories managed by the profile.
 
 Example return value: ["https://github.com/rust-lang/rust", "https://github.com/tokio-rs/tokio"]
@@ -998,7 +1068,7 @@ Examples:
 {{"name": "list_repository_urls_in_current_profile", "arguments": {{}}}}
 ```
 
-### 9. list_project_urls_in_current_profile
+### 10. list_project_urls_in_current_profile
 List all project URLs registered in the current profile. Returns an array of project URLs for projects managed by the profile.
 
 Example return value: ["https://github.com/users/username/projects/1", "https://github.com/orgs/orgname/projects/5"]
@@ -1009,7 +1079,7 @@ Examples:
 {{"name": "list_project_urls_in_current_profile", "arguments": {{}}}}
 ```
 
-### 10. register_repository_branch_group
+### 11. register_repository_branch_group
 Register a repository branch group to a profile for managing collections of branches. Returns the final group name (either provided or auto-generated).
 
 Examples:
@@ -1021,7 +1091,7 @@ Examples:
 {{"name": "register_repository_branch_group", "arguments": {{"profile_name": "default", "group_name": "feature-branches", "pairs": ["https://github.com/owner/repo@feature-x"]}}}}
 ```
 
-### 11. unregister_repository_branch_group
+### 12. unregister_repository_branch_group
 Remove a repository branch group from a profile. Returns the removed group information.
 
 Examples:
@@ -1030,7 +1100,7 @@ Examples:
 {{"name": "unregister_repository_branch_group", "arguments": {{"profile_name": "default", "group_name": "old-group"}}}}
 ```
 
-### 11. add_branch_to_branch_group
+### 13. add_branch_to_branch_group
 Add branches to an existing group. Allows expanding group membership.
 
 Examples:
@@ -1039,7 +1109,7 @@ Examples:
 {{"name": "add_branch_to_branch_group", "arguments": {{"profile_name": "default", "group_name": "feature-branches", "branch_specifiers": ["https://github.com/owner/repo@new-feature"]}}}}
 ```
 
-### 12. remove_branch_from_branch_group
+### 14. remove_branch_from_branch_group
 Remove branches from a group. Allows reducing group membership.
 
 Examples:
@@ -1048,7 +1118,7 @@ Examples:
 {{"name": "remove_branch_from_branch_group", "arguments": {{"profile_name": "default", "group_name": "feature-branches", "branch_specifiers": ["https://github.com/owner/repo@old-feature"]}}}}
 ```
 
-### 13. rename_repository_branch_group
+### 15. rename_repository_branch_group
 Rename a repository branch group. Changes the group's identifier while preserving its contents.
 
 Examples:
@@ -1057,7 +1127,7 @@ Examples:
 {{"name": "rename_repository_branch_group", "arguments": {{"profile_name": "default", "old_name": "temp-group", "new_name": "production-branches"}}}}
 ```
 
-### 14. show_repository_branch_groups
+### 16. show_repository_branch_groups
 List all repository branch groups in a profile. Returns group names for management operations.
 
 Examples:
@@ -1066,7 +1136,7 @@ Examples:
 {{"name": "show_repository_branch_groups", "arguments": {{"profile_name": "default"}}}}
 ```
 
-### 15. get_repository_branch_group
+### 17. get_repository_branch_group
 Show details of a specific repository branch group. Returns comprehensive group information including all branches and timestamps.
 
 Examples:
@@ -1075,7 +1145,7 @@ Examples:
 {{"name": "get_repository_branch_group", "arguments": {{"profile_name": "default", "group_name": "feature-branches"}}}}
 ```
 
-### 16. cleanup_repository_branch_groups
+### 18. cleanup_repository_branch_groups
 Remove repository branch groups older than N days. Useful for cleaning up temporary or outdated groups.
 
 Examples:
@@ -1099,6 +1169,7 @@ Examples:
    - Use get_issues_details to get detailed issue information with comments
    - Use get_pull_request_details to get detailed pull request information with comments and code review threads
    - Use get_pull_request_code_diff_stats to get file-level change statistics (additions, deletions, changes) without diff content
+   - Use get_pull_request_diff_contents to get the actual diff content for specific files in pull requests, with optional line range filtering
 
 4. **Project Management**:
    - Use get_project_resources to access project boards and associated resources

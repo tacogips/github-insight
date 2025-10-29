@@ -155,13 +155,20 @@ Get pull request file statistics by their URLs. Returns file-level change statis
 Examples:
 - Get specific pull request file statistics: `{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}`
 
-#### 5. get_project_details
+#### 5. get_pull_request_diff_contents
+Get the diff content of a specific file from a pull request. Returns the unified diff patch for the specified file. Supports optional line range filtering to retrieve specific portions of the diff.
+
+Examples:
+- Get entire diff for a specific file: `{"pull_request_url": "https://github.com/rust-lang/rust/pull/98765", "file_path": "src/main.rs"}`
+- Get diff for specific line range: `{"pull_request_url": "https://github.com/rust-lang/rust/pull/98765", "file_path": "src/lib.rs", "start_line_no": 10, "end_line_no": 50}`
+
+#### 6. get_project_details
 Get project details by their URLs. Returns detailed project information formatted as markdown with comprehensive metadata including title, description, creation/update dates, project node ID, and other project properties. The project node ID can be used for project updates.
 
 Examples:
 - Get specific projects: `{"project_urls": ["https://github.com/users/username/projects/1", "https://github.com/orgs/orgname/projects/5"]}`
 
-#### 6. get_repository_details
+#### 7. get_repository_details
 Get repository details by URLs. Returns detailed repository information formatted as markdown with comprehensive metadata including URL, description, default branch, mentionable users, labels, milestones, releases (with configurable limit), and timestamps.
 
 Examples:
@@ -169,7 +176,7 @@ Examples:
 - Get specific repositories: `{"repository_urls": ["https://github.com/rust-lang/rust", "https://github.com/tokio-rs/tokio"]}`
 - Get repositories with custom release limit: `{"repository_urls": ["https://github.com/rust-lang/rust"], "showing_release_limit": 5}`
 
-#### 7. search_in_repositories
+#### 8. search_in_repositories
 Search across multiple repositories for issues, PRs, and projects. Comprehensive search across multiple resource types with support for specific repository targeting and advanced pagination.
 
 Examples:
@@ -177,19 +184,19 @@ Examples:
 - Search with default query: `{"repository_urls": ["https://github.com/tokio-rs/tokio"]}`
 - Search with light format: `{"github_search_query": "async await", "repository_urls": ["https://github.com/tokio-rs/tokio"], "output_option": "light", "limit": 20}`
 
-#### 8. list_repository_urls_in_current_profile
+#### 9. list_repository_urls_in_current_profile
 List all repository URLs registered in the current profile. Returns repository IDs and URLs for repositories managed by the profile.
 
 Examples:
 - List all repository URLs in current profile: `{}`
 
-#### 9. list_project_urls_in_current_profile
+#### 10. list_project_urls_in_current_profile
 List all project URLs registered in the current profile. Returns project IDs and URLs for projects managed by the profile.
 
 Examples:
 - List all project URLs in current profile: `{}`
 
-#### 9. Repository Branch Group Management Tools
+#### 11. Repository Branch Group Management Tools
 
 Repository branch groups are collections of branches that enable organized management of related branches across multiple repositories. For example, you can group all 'feature-x' branches across different repositories, or collect all 'main' branches for release management.
 
@@ -306,6 +313,7 @@ Output: Returns JSON array of removed groups with their details.
    - Use get_issues_details to get detailed issue information with comments
    - Use get_pull_request_details to get detailed pull request information with comments and code review threads
    - Use get_pull_request_code_diff_stats to get file-level change statistics (additions, deletions, changes) without diff content
+   - Use get_pull_request_diff_contents to get the actual diff content for specific files in pull requests, with optional line range filtering
 
 4. **Project Management**:
    - Use get_project_resources to access project boards and associated resources
