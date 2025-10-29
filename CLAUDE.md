@@ -149,11 +149,11 @@ Get pull requests by their URLs from specified repositories. Returns detailed pu
 Examples:
 - Get specific pull requests: `{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}`
 
-#### 4. get_pull_request_code_diff
-Get pull request code diffs by their URLs. Returns complete unified diff format for each pull request using GitHub REST API. The diff includes all file changes in standard unified diff format, making it suitable for code review and analysis.
+#### 4. get_pull_request_code_diff_stats
+Get pull request file statistics by their URLs. Returns file-level change statistics (additions, deletions, changes) for each pull request without the actual diff content. Use this for quick overview of changed files and their modification counts.
 
 Examples:
-- Get specific pull request diffs: `{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}`
+- Get specific pull request file statistics: `{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}`
 
 #### 5. get_project_details
 Get project details by their URLs. Returns detailed project information formatted as markdown with comprehensive metadata including title, description, creation/update dates, project node ID, and other project properties. The project node ID can be used for project updates.
@@ -305,7 +305,7 @@ Output: Returns JSON array of removed groups with their details.
 3. **Specific Resource Access**:
    - Use get_issues_details to get detailed issue information with comments
    - Use get_pull_request_details to get detailed pull request information with comments and code review threads
-   - Use get_pull_request_code_diff to get complete unified diff for code changes
+   - Use get_pull_request_code_diff_stats to get file-level change statistics (additions, deletions, changes) without diff content
 
 4. **Project Management**:
    - Use get_project_resources to access project boards and associated resources

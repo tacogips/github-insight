@@ -20,7 +20,7 @@ use crate::formatter::{
     pull_request::{
         pull_request_body_markdown_with_timezone, pull_request_body_markdown_with_timezone_light,
     },
-    pull_request_diff::pull_request_diff_markdown,
+    pull_request_file_stats::pull_request_file_stats_markdown,
     repository::repository_body_markdown_with_timezone,
     repository_branch_group::{
         repository_branch_group_list_with_descriptions_markdown,
@@ -284,13 +284,13 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Get pull request code diffs by their URLs. Returns complete unified diff format for each pull request using GitHub REST API. The diff includes all file changes in standard unified diff format, making it suitable for code review and analysis."
+        description = "Get pull request file statistics by their URLs. Returns file-level change statistics (additions, deletions, changes) for each pull request without the actual diff content. Use this for quick overview of changed files and their modification counts."
     )]
-    async fn get_pull_request_code_diff(
+    async fn get_pull_request_code_diff_stats(
         &self,
         #[tool(param)]
         #[schemars(
-            description = "Pull request URLs to fetch diffs for. Examples: ['https://github.com/rust-lang/rust/pull/98765', 'https://github.com/tokio-rs/tokio/pull/4321']. To get pull request URLs from repositories in the current profile, use list_repository_urls_in_current_profile to get repository URLs and pass them to this parameter."
+            description = "Pull request URLs to fetch file statistics for. Examples: ['https://github.com/rust-lang/rust/pull/98765', 'https://github.com/tokio-rs/tokio/pull/4321']. To get pull request URLs from repositories in the current profile, use list_repository_urls_in_current_profile to get repository URLs and pass them to this parameter."
         )]
         pull_request_urls: Vec<String>,
     ) -> Result<CallToolResult, McpError> {
@@ -302,25 +302,27 @@ impl GitInsightTools {
         let pull_request_urls: Vec<PullRequestUrl> =
             pull_request_urls.into_iter().map(PullRequestUrl).collect();
 
-        // Fetch pull request diffs using the new function
-        let diffs_by_repo =
-            functions::pull_request::get_pull_request_code_diffs(&github_client, pull_request_urls)
-                .await
-                .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+        // Fetch pull request file stats using the new function
+        let files_by_repo = functions::pull_request::get_pull_request_files_stats(
+            &github_client,
+            pull_request_urls,
+        )
+        .await
+        .map_err(|e| McpError::internal_error(e.to_string(), None))?;
 
-        // Format all diffs as markdown using the formatter
+        // Format all file stats as markdown using the formatter
         let mut content_vec = Vec::new();
 
-        for (repo_id, pr_diffs) in diffs_by_repo {
-            for (pr_number, diff) in pr_diffs {
-                let formatted = pull_request_diff_markdown(&repo_id, pr_number, &diff);
+        for (repo_id, pr_files) in files_by_repo {
+            for (pr_number, files) in pr_files {
+                let formatted = pull_request_file_stats_markdown(&repo_id, pr_number, &files);
                 content_vec.push(Content::text(formatted.0));
             }
         }
 
         if content_vec.is_empty() {
             content_vec.push(Content::text(
-                "No pull request diffs found for the provided URLs.".to_string(),
+                "No pull request file statistics found for the provided URLs.".to_string(),
             ));
         }
 
@@ -925,13 +927,13 @@ Examples:
 {{"name": "get_pull_request_details", "arguments": {{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}}}}
 ```
 
-### 4. get_pull_request_code_diff
-Get pull request code diffs by their URLs. Returns complete unified diff format for each pull request using GitHub REST API. The diff includes all file changes in standard unified diff format, making it suitable for code review and analysis.
+### 4. get_pull_request_code_diff_stats
+Get pull request file statistics by their URLs. Returns file-level change statistics (additions, deletions, changes) for each pull request without the actual diff content. Use this for quick overview of changed files and their modification counts.
 
 Examples:
 ```json
-// Get specific pull request diffs by URLs
-{{"name": "get_pull_request_code_diff", "arguments": {{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}}}}
+// Get specific pull request file statistics by URLs
+{{"name": "get_pull_request_code_diff_stats", "arguments": {{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}}}}
 ```
 
 ### 5. get_project_details
@@ -1096,7 +1098,7 @@ Examples:
 3. **Specific Resource Access**:
    - Use get_issues_details to get detailed issue information with comments
    - Use get_pull_request_details to get detailed pull request information with comments and code review threads
-   - Use get_pull_request_code_diff to get complete unified diff for code changes
+   - Use get_pull_request_code_diff_stats to get file-level change statistics (additions, deletions, changes) without diff content
 
 4. **Project Management**:
    - Use get_project_resources to access project boards and associated resources

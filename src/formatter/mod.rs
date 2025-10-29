@@ -3,6 +3,7 @@ pub mod project;
 pub mod project_resource;
 pub mod pull_request;
 pub mod pull_request_diff;
+pub mod pull_request_file_stats;
 pub mod repository;
 pub mod repository_branch_group;
 
@@ -15,6 +16,7 @@ pub use project::*;
 pub use project_resource::*;
 pub use pull_request::*;
 pub use pull_request_diff::*;
+pub use pull_request_file_stats::*;
 pub use repository::*;
 pub use repository_branch_group::*;
 
