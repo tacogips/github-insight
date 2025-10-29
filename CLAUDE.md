@@ -156,11 +156,11 @@ Examples:
 - Get specific pull request file statistics: `{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}`
 
 #### 5. get_pull_request_diff_contents
-Get the diff content of a specific file from a pull request. Returns the unified diff patch for the specified file. Supports optional line range filtering to retrieve specific portions of the diff.
+Get the diff content of a specific file from a pull request. Returns the unified diff patch for the specified file. Supports optional skip/limit filtering to retrieve specific portions of the diff.
 
 Examples:
 - Get entire diff for a specific file: `{"pull_request_url": "https://github.com/rust-lang/rust/pull/98765", "file_path": "src/main.rs"}`
-- Get diff for specific line range: `{"pull_request_url": "https://github.com/rust-lang/rust/pull/98765", "file_path": "src/lib.rs", "start_line_no": 10, "end_line_no": 50}`
+- Get diff with skip and limit: `{"pull_request_url": "https://github.com/rust-lang/rust/pull/98765", "file_path": "src/lib.rs", "skip": 10, "limit": 40}`
 
 #### 6. get_project_details
 Get project details by their URLs. Returns detailed project information formatted as markdown with comprehensive metadata including title, description, creation/update dates, project node ID, and other project properties. The project node ID can be used for project updates.
@@ -313,7 +313,7 @@ Output: Returns JSON array of removed groups with their details.
    - Use get_issues_details to get detailed issue information with comments
    - Use get_pull_request_details to get detailed pull request information with comments and code review threads
    - Use get_pull_request_code_diff_stats to get file-level change statistics (additions, deletions, changes) without diff content
-   - Use get_pull_request_diff_contents to get the actual diff content for specific files in pull requests, with optional line range filtering
+   - Use get_pull_request_diff_contents to get the actual diff content for specific files in pull requests, with optional skip/limit filtering
 
 4. **Project Management**:
    - Use get_project_resources to access project boards and associated resources

@@ -349,16 +349,16 @@ impl GitInsightTools {
         file_path: String,
         #[tool(param)]
         #[schemars(
-            description = "Optional starting line number (1-indexed, inclusive). If not specified, starts from the first line."
+            description = "Optional number of lines to skip from the beginning of the diff. If not specified, starts from the first line (skip=0)."
         )]
         #[schemars(default)]
-        start_line_no: Option<u32>,
+        skip: Option<u32>,
         #[tool(param)]
         #[schemars(
-            description = "Optional ending line number (1-indexed, inclusive). If not specified, goes to the last line."
+            description = "Optional maximum number of lines to return. If not specified, returns all lines from the skip position to the end."
         )]
         #[schemars(default)]
-        end_line_no: Option<u32>,
+        limit: Option<u32>,
     ) -> Result<CallToolResult, McpError> {
         let github_client = GitHubClient::new(self.github_token.clone(), None).map_err(|e| {
             McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
@@ -372,8 +372,8 @@ impl GitInsightTools {
             &github_client,
             pull_request_url,
             file_path.clone(),
-            start_line_no,
-            end_line_no,
+            skip,
+            limit,
         )
         .await
         .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -995,15 +995,15 @@ Examples:
 ```
 
 ### 5. get_pull_request_diff_contents
-Get the diff content of a specific file from a pull request. Returns the unified diff patch for the specified file. Supports optional line range filtering to retrieve specific portions of the diff.
+Get the diff content of a specific file from a pull request. Returns the unified diff patch for the specified file. Supports optional skip/limit filtering to retrieve specific portions of the diff.
 
 Examples:
 ```json
 // Get entire diff for a specific file
 {{"name": "get_pull_request_diff_contents", "arguments": {{"pull_request_url": "https://github.com/rust-lang/rust/pull/98765", "file_path": "src/main.rs"}}}}
 
-// Get diff for specific line range (lines 10-50)
-{{"name": "get_pull_request_diff_contents", "arguments": {{"pull_request_url": "https://github.com/rust-lang/rust/pull/98765", "file_path": "src/lib.rs", "start_line_no": 10, "end_line_no": 50}}}}
+// Get diff with skip and limit (skip first 10 lines, return next 40 lines)
+{{"name": "get_pull_request_diff_contents", "arguments": {{"pull_request_url": "https://github.com/rust-lang/rust/pull/98765", "file_path": "src/lib.rs", "skip": 10, "limit": 40}}}}
 ```
 
 ### 6. get_project_details

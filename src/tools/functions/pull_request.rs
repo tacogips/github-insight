@@ -122,19 +122,19 @@ pub async fn get_pull_request_files_stats(
 /// * `github_client` - GitHub client instance
 /// * `pull_request_url` - Pull request URL
 /// * `file_path` - File path within the repository
-/// * `start_line_no` - Optional starting line number (1-indexed)
-/// * `end_line_no` - Optional ending line number (1-indexed, inclusive)
+/// * `skip` - Optional number of lines to skip from the beginning
+/// * `limit` - Optional maximum number of lines to return
 ///
 /// # Returns
 ///
-/// Returns the diff content as a String. If line range is specified, only returns
-/// the lines within that range.
+/// Returns the diff content as a String. If skip/limit is specified, only returns
+/// the requested portion of the diff.
 pub async fn get_pull_request_diff_contents(
     github_client: &GitHubClient,
     pull_request_url: PullRequestUrl,
     file_path: String,
-    start_line_no: Option<u32>,
-    end_line_no: Option<u32>,
+    skip: Option<u32>,
+    limit: Option<u32>,
 ) -> Result<String> {
     // Parse URL to get repository and PR number
     let pull_request_id = PullRequestId::parse_url(&pull_request_url).map_err(|e| {
@@ -162,34 +162,31 @@ pub async fn get_pull_request_diff_contents(
             )
         })?;
 
-    // If no line range is specified, return the entire patch
-    if start_line_no.is_none() && end_line_no.is_none() {
+    // If no skip/limit is specified, return the entire patch
+    if skip.is_none() && limit.is_none() {
         return Ok(patch);
     }
 
-    // Filter lines based on the specified range
+    // Filter lines based on skip and limit
     let lines: Vec<&str> = patch.lines().collect();
-    let start = start_line_no.unwrap_or(1) as usize;
-    let end = end_line_no.unwrap_or(lines.len() as u32) as usize;
+    let skip_count = skip.unwrap_or(0) as usize;
 
-    // Validate line numbers
-    if start < 1 {
-        return Err(anyhow::anyhow!("start_line_no must be >= 1"));
-    }
-    if end < start {
-        return Err(anyhow::anyhow!("end_line_no must be >= start_line_no"));
-    }
-    if start > lines.len() {
+    // Validate skip
+    if skip_count > lines.len() {
         return Err(anyhow::anyhow!(
-            "start_line_no {} exceeds total lines {}",
-            start,
+            "skip {} exceeds total lines {}",
+            skip_count,
             lines.len()
         ));
     }
 
-    // Convert to 0-indexed and extract the range
-    let start_idx = start - 1;
-    let end_idx = end.min(lines.len());
+    // Calculate the range
+    let start_idx = skip_count;
+    let end_idx = if let Some(limit_val) = limit {
+        (start_idx + limit_val as usize).min(lines.len())
+    } else {
+        lines.len()
+    };
 
     let filtered_lines = &lines[start_idx..end_idx];
     Ok(filtered_lines.join("\n"))
