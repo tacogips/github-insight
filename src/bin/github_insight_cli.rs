@@ -254,6 +254,24 @@ enum Commands {
         /// GitHub pull request URLs to fetch diffs from - supports multiple URLs for batch processing
         urls: Vec<String>,
     },
+    /// Fetch pull request file statistics by URLs - returns file-level change statistics without diff content
+    GetPullRequestDiffStats {
+        /// GitHub pull request URLs to fetch file statistics from - supports multiple URLs for batch processing
+        urls: Vec<String>,
+    },
+    /// Fetch diff content of a specific file from a pull request with optional skip/limit filtering
+    GetPullRequestDiffContents {
+        /// GitHub pull request URL to fetch diff from
+        pull_request_url: String,
+        /// File path within the repository (e.g., 'src/main.rs', 'README.md')
+        file_path: String,
+        /// Optional number of lines to skip from the beginning of the diff
+        #[arg(long)]
+        skip: Option<u32>,
+        /// Optional maximum number of lines to return
+        #[arg(long)]
+        limit: Option<u32>,
+    },
     /// Fetch detailed repository information including metadata, statistics, releases (with configurable limit), and configuration by URLs
     GetRepositories {
         /// GitHub repository URLs to fetch detailed information from - supports multiple URLs for batch processing
@@ -659,6 +677,35 @@ async fn main() -> Result<()> {
             )
             .await?;
         }
+        Commands::GetPullRequestDiffStats { urls } => {
+            let pull_request_urls: Vec<PullRequestUrl> =
+                urls.iter().map(|url| PullRequestUrl(url.clone())).collect();
+            handle_get_pull_request_diff_stats_command(
+                pull_request_urls,
+                &cli.format,
+                &github_token,
+                cli.request_timeout.map(Duration::from_secs),
+            )
+            .await?;
+        }
+        Commands::GetPullRequestDiffContents {
+            pull_request_url,
+            file_path,
+            skip,
+            limit,
+        } => {
+            let pr_url = PullRequestUrl(pull_request_url);
+            handle_get_pull_request_diff_contents_command(
+                pr_url,
+                file_path,
+                skip,
+                limit,
+                &cli.format,
+                &github_token,
+                cli.request_timeout.map(Duration::from_secs),
+            )
+            .await?;
+        }
         Commands::GetRepositories {
             urls,
             showing_release_limit,
@@ -1015,6 +1062,109 @@ async fn handle_get_pull_request_diffs_command(
             if !found_diffs {
                 println!("No pull request diffs found for the provided URLs.");
             }
+        }
+    }
+
+    Ok(())
+}
+
+/// Handle get pull request diff stats command
+async fn handle_get_pull_request_diff_stats_command(
+    pull_request_urls: Vec<PullRequestUrl>,
+    format: &OutputFormat,
+    github_token: &Option<String>,
+    request_timeout: Option<Duration>,
+) -> Result<()> {
+    let github_client = GitHubClient::new(github_token.clone(), request_timeout)
+        .map_err(|e| anyhow::anyhow!("Failed to create GitHub client: {}", e))?;
+
+    let files_by_repo =
+        functions::pull_request::get_pull_request_files_stats(&github_client, pull_request_urls)
+            .await?;
+
+    // Output results
+    match format {
+        OutputFormat::Json => {
+            // Convert to JSON-friendly format with string keys
+            use serde_json::json;
+            let mut results = Vec::new();
+            for (repo_id, pr_files) in files_by_repo {
+                for (pr_number, files) in pr_files {
+                    results.push(json!({
+                        "repository": format!("{}", repo_id),
+                        "pull_request_number": pr_number.value(),
+                        "files": files,
+                    }));
+                }
+            }
+            let json_output = serde_json::to_string_pretty(&results)?;
+            println!("{}", json_output);
+        }
+        OutputFormat::Markdown => {
+            use github_insight::formatter::pull_request_file_stats_markdown;
+            let mut found_stats = false;
+            for (repo_id, pr_files) in files_by_repo {
+                for (pr_number, files) in pr_files {
+                    let formatted = pull_request_file_stats_markdown(&repo_id, pr_number, &files);
+                    println!("{}", formatted.0);
+                    println!("---");
+                    found_stats = true;
+                }
+            }
+            if !found_stats {
+                println!("No pull request file statistics found for the provided URLs.");
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Handle get pull request diff contents command
+async fn handle_get_pull_request_diff_contents_command(
+    pull_request_url: PullRequestUrl,
+    file_path: String,
+    skip: Option<u32>,
+    limit: Option<u32>,
+    format: &OutputFormat,
+    github_token: &Option<String>,
+    request_timeout: Option<Duration>,
+) -> Result<()> {
+    let github_client = GitHubClient::new(github_token.clone(), request_timeout)
+        .map_err(|e| anyhow::anyhow!("Failed to create GitHub client: {}", e))?;
+
+    let diff_content = functions::pull_request::get_pull_request_diff_contents(
+        &github_client,
+        pull_request_url.clone(),
+        file_path.clone(),
+        skip,
+        limit,
+    )
+    .await?;
+
+    // Output results
+    match format {
+        OutputFormat::Json => {
+            use serde_json::json;
+            let json_output = json!({
+                "pull_request_url": pull_request_url.0,
+                "file_path": file_path,
+                "skip": skip,
+                "limit": limit,
+                "diff_content": diff_content,
+            });
+            println!("{}", serde_json::to_string_pretty(&json_output)?);
+        }
+        OutputFormat::Markdown => {
+            use github_insight::formatter::pull_request_diff_contents_markdown;
+            let formatted = pull_request_diff_contents_markdown(
+                &pull_request_url,
+                &file_path,
+                &diff_content,
+                skip,
+                limit,
+            );
+            println!("{}", formatted.0);
         }
     }
 

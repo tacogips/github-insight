@@ -10,37 +10,19 @@
 //! - Find related resources through cross-references and semantic similarity
 //! - Support for multiple filtering options and hybrid search
 
-use crate::formatter::{
-    TimezoneOffset,
-    issue::{issue_body_markdown_with_timezone, issue_body_markdown_with_timezone_light},
-    project_resource::{
-        project_resource_body_markdown_with_timezone,
-        project_resource_body_markdown_with_timezone_light,
-    },
-    pull_request::{
-        pull_request_body_markdown_with_timezone, pull_request_body_markdown_with_timezone_light,
-    },
-    pull_request_file_stats::pull_request_file_stats_markdown,
-    repository::repository_body_markdown_with_timezone,
-    repository_branch_group::{
-        repository_branch_group_list_with_descriptions_markdown,
-        repository_branch_group_markdown_with_timezone,
-    },
-};
-use crate::github::GitHubClient;
-use crate::types::{
-    IssueUrl, OutputOption, ProfileName, ProjectUrl, PullRequestUrl, SearchCursorByRepository,
-    SearchQuery,
-};
+use crate::formatter::TimezoneOffset;
+use crate::types::{ProfileName, SearchCursorByRepository};
 use anyhow::Result;
 use rmcp::{Error as McpError, ServerHandler, model::*, tool};
-use serde_json;
 
 /// Error types specific to tool operations
 pub mod error;
 
 /// Tool function implementations organized by functionality
 pub mod functions;
+
+/// MCP tool interface implementations
+pub mod tools_interface;
 
 /// Wrapper for GitHub code tools exposed through the MCP protocol
 #[derive(Clone)]
@@ -120,74 +102,13 @@ impl GitInsightTools {
         #[schemars(default)]
         output_option: Option<String>,
     ) -> Result<CallToolResult, McpError> {
-        let github_client = GitHubClient::new(self.github_token.clone(), None).map_err(|e| {
-            McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
-        })?;
-
-        // Check if project_urls is empty and return error
-        if project_urls.is_empty() {
-            return Err(McpError::invalid_request(
-                "project_urls cannot be empty. Please provide at least one project URL. To get projects from the current profile, use list_project_urls_in_current_profile to get project URLs and pass them to this parameter.".to_string(),
-                None,
-            ));
-        }
-
-        // Parse output format option, defaulting to rich
-        let format = if let Some(option_str) = output_option {
-            option_str
-                .parse::<OutputOption>()
-                .unwrap_or(OutputOption::Rich)
-        } else {
-            OutputOption::Rich
-        };
-
-        let mut content_vec = Vec::new();
-
-        // Convert strings to ProjectId
-        let mut project_ids = Vec::new();
-        for project_url_str in project_urls {
-            let project_url = ProjectUrl(project_url_str);
-            let (owner_str, number, project_type) =
-                crate::types::ProjectId::parse_url(&project_url).map_err(|e| {
-                    McpError::invalid_params(format!("Failed to parse project URL: {}", e), None)
-                })?;
-
-            let project_id = crate::types::ProjectId::new(
-                crate::types::repository::Owner::new(owner_str),
-                crate::types::ProjectNumber::new(number),
-                project_type,
-            );
-            project_ids.push(project_id);
-        }
-
-        // Fetch resources for specified projects
-        let project_resources =
-            functions::project::get_multiple_project_resources(&github_client, project_ids)
-                .await
-                .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-
-        for project_resource in project_resources {
-            let formatted = match format {
-                OutputOption::Light => project_resource_body_markdown_with_timezone_light(
-                    &project_resource,
-                    self.timezone.as_ref(),
-                ),
-                OutputOption::Rich => project_resource_body_markdown_with_timezone(
-                    &project_resource,
-                    self.timezone.as_ref(),
-                ),
-            };
-            content_vec.push(Content::text(formatted.0));
-        }
-
-        if content_vec.is_empty() {
-            content_vec.push(Content::text("No project resources found.".to_string()));
-        }
-
-        Ok(CallToolResult {
-            content: content_vec,
-            is_error: Some(false),
-        })
+        tools_interface::get_project_resources::get_project_resources(
+            &self.github_token,
+            &self.timezone,
+            project_urls,
+            output_option,
+        )
+        .await
     }
 
     #[tool(
@@ -201,38 +122,12 @@ impl GitInsightTools {
         )]
         issue_urls: Vec<String>,
     ) -> Result<CallToolResult, McpError> {
-        let github_client = GitHubClient::new(self.github_token.clone(), None).map_err(|e| {
-            McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
-        })?;
-
-        // Convert strings to IssueUrl
-        let issue_urls: Vec<IssueUrl> = issue_urls.into_iter().map(IssueUrl).collect();
-
-        // Fetch issues using the existing function
-        let issues_by_repo = functions::issue::get_issues_details(&github_client, issue_urls)
-            .await
-            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-
-        // Format all issues as markdown
-        let mut content_vec = Vec::new();
-
-        for (_repo_id, issues) in issues_by_repo {
-            for issue in issues {
-                let formatted = issue_body_markdown_with_timezone(&issue, self.timezone.as_ref());
-                content_vec.push(Content::text(formatted.0));
-            }
-        }
-
-        if content_vec.is_empty() {
-            content_vec.push(Content::text(
-                "No issues found for the provided URLs.".to_string(),
-            ));
-        }
-
-        Ok(CallToolResult {
-            content: content_vec,
-            is_error: Some(false),
-        })
+        tools_interface::get_issues_details::get_issues_details(
+            &self.github_token,
+            &self.timezone,
+            issue_urls,
+        )
+        .await
     }
 
     #[tool(
@@ -246,41 +141,12 @@ impl GitInsightTools {
         )]
         pull_request_urls: Vec<String>,
     ) -> Result<CallToolResult, McpError> {
-        let github_client = GitHubClient::new(self.github_token.clone(), None).map_err(|e| {
-            McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
-        })?;
-
-        // Convert strings to PullRequestUrl
-        let pull_request_urls: Vec<PullRequestUrl> =
-            pull_request_urls.into_iter().map(PullRequestUrl).collect();
-
-        // Fetch pull requests using the existing function
-        let pull_requests_by_repo =
-            functions::pull_request::get_pull_requests_details(&github_client, pull_request_urls)
-                .await
-                .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-
-        // Format all pull requests as markdown
-        let mut content_vec = Vec::new();
-
-        for (_repo_id, pull_requests) in pull_requests_by_repo {
-            for pull_request in pull_requests {
-                let formatted =
-                    pull_request_body_markdown_with_timezone(&pull_request, self.timezone.as_ref());
-                content_vec.push(Content::text(formatted.0));
-            }
-        }
-
-        if content_vec.is_empty() {
-            content_vec.push(Content::text(
-                "No pull requests found for the provided URLs.".to_string(),
-            ));
-        }
-
-        Ok(CallToolResult {
-            content: content_vec,
-            is_error: Some(false),
-        })
+        tools_interface::get_pull_request_details::get_pull_request_details(
+            &self.github_token,
+            &self.timezone,
+            pull_request_urls,
+        )
+        .await
     }
 
     #[tool(
@@ -294,42 +160,11 @@ impl GitInsightTools {
         )]
         pull_request_urls: Vec<String>,
     ) -> Result<CallToolResult, McpError> {
-        let github_client = GitHubClient::new(self.github_token.clone(), None).map_err(|e| {
-            McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
-        })?;
-
-        // Convert strings to PullRequestUrl
-        let pull_request_urls: Vec<PullRequestUrl> =
-            pull_request_urls.into_iter().map(PullRequestUrl).collect();
-
-        // Fetch pull request file stats using the new function
-        let files_by_repo = functions::pull_request::get_pull_request_files_stats(
-            &github_client,
+        tools_interface::get_pull_request_code_diff_stats::get_pull_request_code_diff_stats(
+            &self.github_token,
             pull_request_urls,
         )
         .await
-        .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-
-        // Format all file stats as markdown using the formatter
-        let mut content_vec = Vec::new();
-
-        for (repo_id, pr_files) in files_by_repo {
-            for (pr_number, files) in pr_files {
-                let formatted = pull_request_file_stats_markdown(&repo_id, pr_number, &files);
-                content_vec.push(Content::text(formatted.0));
-            }
-        }
-
-        if content_vec.is_empty() {
-            content_vec.push(Content::text(
-                "No pull request file statistics found for the provided URLs.".to_string(),
-            ));
-        }
-
-        Ok(CallToolResult {
-            content: content_vec,
-            is_error: Some(false),
-        })
     }
 
     #[tool(
@@ -360,34 +195,14 @@ impl GitInsightTools {
         #[schemars(default)]
         limit: Option<u32>,
     ) -> Result<CallToolResult, McpError> {
-        let github_client = GitHubClient::new(self.github_token.clone(), None).map_err(|e| {
-            McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
-        })?;
-
-        // Convert string to PullRequestUrl
-        let pull_request_url = PullRequestUrl(pull_request_url);
-
-        // Fetch the diff content
-        let diff_content = functions::pull_request::get_pull_request_diff_contents(
-            &github_client,
+        tools_interface::get_pull_request_diff_contents::get_pull_request_diff_contents(
+            &self.github_token,
             pull_request_url,
-            file_path.clone(),
+            file_path,
             skip,
             limit,
         )
         .await
-        .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-
-        // Format as markdown code block
-        let formatted = format!(
-            "## Diff for file: {}\n\n```diff\n{}\n```",
-            file_path, diff_content
-        );
-
-        Ok(CallToolResult {
-            content: vec![Content::text(formatted)],
-            is_error: Some(false),
-        })
     }
 
     #[tool(
@@ -413,53 +228,14 @@ impl GitInsightTools {
         #[schemars(default)]
         showing_milestone_limit: Option<usize>,
     ) -> Result<CallToolResult, McpError> {
-        let github_client = GitHubClient::new(self.github_token.clone(), None).map_err(|e| {
-            McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
-        })?;
-
-        // Check if repository_urls is empty and return error
-        if repository_urls.is_empty() {
-            return Err(McpError::invalid_request(
-                "repository_urls cannot be empty. Please provide at least one repository URL."
-                    .to_string(),
-                None,
-            ));
-        }
-
-        let repository_urls = repository_urls
-            .into_iter()
-            .map(crate::types::RepositoryUrl)
-            .collect::<Vec<_>>();
-
-        // Fetch repositories using the multiple repositories function
-        let repositories =
-            functions::repository::get_multiple_repository_details(&github_client, repository_urls)
-                .await
-                .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-
-        // Format all repositories as markdown
-        let mut content_vec = Vec::new();
-
-        for repository in repositories {
-            let formatted = repository_body_markdown_with_timezone(
-                &repository,
-                self.timezone.as_ref(),
-                showing_release_limit,
-                showing_milestone_limit,
-            );
-            content_vec.push(Content::text(formatted.0));
-        }
-
-        if content_vec.is_empty() {
-            content_vec.push(Content::text(
-                "No repositories found for the provided URLs.".to_string(),
-            ));
-        }
-
-        Ok(CallToolResult {
-            content: content_vec,
-            is_error: Some(false),
-        })
+        tools_interface::get_repository_details::get_repository_details(
+            &self.github_token,
+            &self.timezone,
+            repository_urls,
+            showing_release_limit,
+            showing_milestone_limit,
+        )
+        .await
     }
 
     #[tool(
@@ -473,39 +249,12 @@ impl GitInsightTools {
         )]
         project_urls: Vec<String>,
     ) -> Result<CallToolResult, McpError> {
-        let github_client = GitHubClient::new(self.github_token.clone(), None).map_err(|e| {
-            McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
-        })?;
-
-        // Convert strings to ProjectUrl
-        let project_urls: Vec<ProjectUrl> = project_urls.into_iter().map(ProjectUrl).collect();
-
-        // Fetch projects using the existing function
-        let projects = functions::project::get_projects_details(&github_client, project_urls)
-            .await
-            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-
-        // Format all projects as markdown
-        let mut content_vec = Vec::new();
-
-        for project in projects {
-            let formatted = crate::formatter::project::project_body_markdown_with_timezone(
-                &project,
-                self.timezone.as_ref(),
-            );
-            content_vec.push(Content::text(formatted.0));
-        }
-
-        if content_vec.is_empty() {
-            content_vec.push(Content::text(
-                "No projects found for the provided URLs.".to_string(),
-            ));
-        }
-
-        Ok(CallToolResult {
-            content: content_vec,
-            is_error: Some(false),
-        })
+        tools_interface::get_project_details::get_project_details(
+            &self.github_token,
+            &self.timezone,
+            project_urls,
+        )
+        .await
     }
 
     #[tool(
@@ -542,145 +291,36 @@ impl GitInsightTools {
         #[schemars(default)]
         output_option: Option<String>,
     ) -> Result<CallToolResult, McpError> {
-        let github_client = GitHubClient::new(self.github_token.clone(), None).map_err(|e| {
-            McpError::internal_error(format!("Failed to create GitHub client: {}", e), None)
-        })?;
-
-        let limit = limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
-
-        // Convert String to OutputOption
-        let format = if let Some(option_str) = output_option {
-            option_str.parse::<OutputOption>().unwrap_or_default()
-        } else {
-            OutputOption::default()
-        };
-
-        // Convert String to SearchQuery, using default if not provided
-        let query_string = github_search_query.unwrap_or_else(|| DEFAULT_SEARCH_QUERY.to_string());
-        let query = SearchQuery::new(query_string);
-
-        // Check if repository_urls is empty and return error
-        if repository_urls.is_empty() {
-            return Err(McpError::invalid_request(
-                "repository_urls cannot be empty. Please provide at least one repository URL."
-                    .to_string(),
-                None,
-            ));
-        }
-
-        // Search in specific repositories
-        let mut repo_ids = Vec::new();
-        for repo_url_str in repository_urls {
-            let repo_id =
-                crate::types::RepositoryId::parse_url(&crate::types::RepositoryUrl(repo_url_str))
-                    .map_err(|e| {
-                    McpError::internal_error(format!("Invalid repository ID: {}", e), None)
-                })?;
-            repo_ids.push(repo_id);
-        }
-        let repository_urls = repo_ids;
-
-        // Search across repositories
-        let search_results = functions::search::search_resources(
-            &github_client,
+        tools_interface::search_in_repositories::search_in_repositories(
+            &self.github_token,
+            &self.timezone,
+            github_search_query,
             repository_urls,
-            query,
-            Some(limit as u32),
+            limit,
             cursors,
+            output_option,
         )
         .await
-        .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-
-        // Format results as markdown
-        let mut content_vec = Vec::new();
-
-        if search_results.results.is_empty() {
-            content_vec.push(Content::text("No results found.".to_string()));
-        } else {
-            for result in search_results.results {
-                let formatted = match result {
-                    crate::types::IssueOrPullrequest::Issue(issue) => match format {
-                        OutputOption::Light => {
-                            issue_body_markdown_with_timezone_light(&issue, self.timezone.as_ref())
-                                .0
-                        }
-                        OutputOption::Rich => {
-                            issue_body_markdown_with_timezone(&issue, self.timezone.as_ref()).0
-                        }
-                    },
-                    crate::types::IssueOrPullrequest::PullRequest(pr) => match format {
-                        OutputOption::Light => {
-                            pull_request_body_markdown_with_timezone_light(
-                                &pr,
-                                self.timezone.as_ref(),
-                            )
-                            .0
-                        }
-                        OutputOption::Rich => {
-                            pull_request_body_markdown_with_timezone(&pr, self.timezone.as_ref()).0
-                        }
-                    },
-                };
-                content_vec.push(Content::text(formatted));
-            }
-        }
-
-        // Add cursor information as JSON
-        if !search_results.cursors.is_empty() {
-            let cursors_json =
-                serde_json::to_string_pretty(&search_results.cursors).map_err(|e| {
-                    McpError::internal_error(format!("Failed to serialize cursors: {}", e), None)
-                })?;
-            content_vec.push(Content::text(format!(
-                "Next page cursors:\n```json\n{}\n```",
-                cursors_json
-            )));
-        }
-
-        Ok(CallToolResult {
-            content: content_vec,
-            is_error: Some(false),
-        })
     }
 
     #[tool(
         description = "List all repository URLs registered in the current profile. Returns an array of repository URLs for repositories managed by the profile. Example return value: [\"https://github.com/rust-lang/rust\", \"https://github.com/tokio-rs/tokio\"]"
     )]
     async fn list_repository_urls_in_current_profile(&self) -> Result<CallToolResult, McpError> {
-        let profile_name = self.profile_name.clone().unwrap_or_default().to_string();
-
-        let result = functions::profile::list_repositories(profile_name)
-            .await
-            .map_err(|e| McpError::internal_error(e, None))?;
-
-        let content = Content::text(serde_json::to_string_pretty(&result).map_err(|e| {
-            McpError::internal_error(format!("Failed to serialize result: {}", e), None)
-        })?);
-
-        Ok(CallToolResult {
-            content: vec![content],
-            is_error: Some(false),
-        })
+        tools_interface::list_repository_urls_in_current_profile::list_repository_urls_in_current_profile(
+            &self.profile_name,
+        )
+        .await
     }
 
     #[tool(
         description = "List all project URLs registered in the current profile. Returns an array of project URLs for projects managed by the profile. Example return value: [\"https://github.com/users/username/projects/1\", \"https://github.com/orgs/orgname/projects/5\"]"
     )]
     async fn list_project_urls_in_current_profile(&self) -> Result<CallToolResult, McpError> {
-        let profile_name = self.profile_name.clone().unwrap_or_default().to_string();
-
-        let result = functions::profile::list_projects(profile_name)
-            .await
-            .map_err(|e| McpError::internal_error(e, None))?;
-
-        let content = Content::text(serde_json::to_string_pretty(&result).map_err(|e| {
-            McpError::internal_error(format!("Failed to serialize result: {}", e), None)
-        })?);
-
-        Ok(CallToolResult {
-            content: vec![content],
-            is_error: Some(false),
-        })
+        tools_interface::list_project_urls_in_current_profile::list_project_urls_in_current_profile(
+            &self.profile_name,
+        )
+        .await
     }
 
     #[tool(
@@ -709,24 +349,13 @@ impl GitInsightTools {
         )]
         description: Option<String>,
     ) -> Result<CallToolResult, McpError> {
-        let final_group_name =
-            functions::profile::register_repository_branch_group_with_description(
-                profile_name,
-                group_name,
-                pairs,
-                description,
-            )
-            .await
-            .map_err(|e| McpError::internal_error(e, None))?;
-
-        let content = Content::text(serde_json::to_string_pretty(&final_group_name).map_err(
-            |e| McpError::internal_error(format!("Failed to serialize result: {}", e), None),
-        )?);
-
-        Ok(CallToolResult {
-            content: vec![content],
-            is_error: Some(false),
-        })
+        tools_interface::repository_branch_group::register_repository_branch_group(
+            profile_name,
+            group_name,
+            pairs,
+            description,
+        )
+        .await
     }
 
     #[tool(
@@ -741,19 +370,11 @@ impl GitInsightTools {
         #[schemars(description = "Group name to remove. Example: 'feature-branch-group'")]
         group_name: String,
     ) -> Result<CallToolResult, McpError> {
-        let removed_group =
-            functions::profile::unregister_repository_branch_group(profile_name, group_name)
-                .await
-                .map_err(|e| McpError::internal_error(e, None))?;
-
-        let content = Content::text(serde_json::to_string_pretty(&removed_group).map_err(|e| {
-            McpError::internal_error(format!("Failed to serialize result: {}", e), None)
-        })?);
-
-        Ok(CallToolResult {
-            content: vec![content],
-            is_error: Some(false),
-        })
+        tools_interface::repository_branch_group::unregister_repository_branch_group(
+            profile_name,
+            group_name,
+        )
+        .await
     }
 
     #[tool(
@@ -773,16 +394,12 @@ impl GitInsightTools {
         )]
         branch_specifiers: Vec<String>,
     ) -> Result<CallToolResult, McpError> {
-        functions::profile::add_branch_to_branch_group(profile_name, group_name, branch_specifiers)
-            .await
-            .map_err(|e| McpError::internal_error(e, None))?;
-
-        let content = Content::text("Branches added successfully".to_string());
-
-        Ok(CallToolResult {
-            content: vec![content],
-            is_error: Some(false),
-        })
+        tools_interface::repository_branch_group::add_branch_to_branch_group(
+            profile_name,
+            group_name,
+            branch_specifiers,
+        )
+        .await
     }
 
     #[tool(
@@ -804,20 +421,12 @@ impl GitInsightTools {
         )]
         branch_specifiers: Vec<String>,
     ) -> Result<CallToolResult, McpError> {
-        functions::profile::remove_branch_from_branch_group(
+        tools_interface::repository_branch_group::remove_branch_from_branch_group(
             profile_name,
             group_name,
             branch_specifiers,
         )
         .await
-        .map_err(|e| McpError::internal_error(e, None))?;
-
-        let content = Content::text("Branches removed successfully".to_string());
-
-        Ok(CallToolResult {
-            content: vec![content],
-            is_error: Some(false),
-        })
     }
 
     #[tool(
@@ -835,16 +444,12 @@ impl GitInsightTools {
         #[schemars(description = "New group name. Example: 'new-group-name'")]
         new_name: String,
     ) -> Result<CallToolResult, McpError> {
-        functions::profile::rename_repository_branch_group(profile_name, old_name, new_name)
-            .await
-            .map_err(|e| McpError::internal_error(e, None))?;
-
-        let content = Content::text("Group renamed successfully".to_string());
-
-        Ok(CallToolResult {
-            content: vec![content],
-            is_error: Some(false),
-        })
+        tools_interface::repository_branch_group::rename_repository_branch_group(
+            profile_name,
+            old_name,
+            new_name,
+        )
+        .await
     }
 
     #[tool(
@@ -856,21 +461,7 @@ impl GitInsightTools {
         #[schemars(description = "Profile name to list groups from. Example: 'default', 'work'")]
         profile_name: String,
     ) -> Result<CallToolResult, McpError> {
-        let profile_name_str = profile_name.clone();
-        let groups = functions::profile::list_repository_branch_groups_with_details(
-            &ProfileName::from(profile_name.as_str()),
-        )
-        .await
-        .map_err(|e| McpError::internal_error(e, None))?;
-
-        let formatted =
-            repository_branch_group_list_with_descriptions_markdown(&groups, &profile_name_str);
-        let content = Content::text(formatted.0);
-
-        Ok(CallToolResult {
-            content: vec![content],
-            is_error: Some(false),
-        })
+        tools_interface::repository_branch_group::show_repository_branch_groups(profile_name).await
     }
 
     #[tool(
@@ -887,18 +478,12 @@ impl GitInsightTools {
         )]
         group_name: String,
     ) -> Result<CallToolResult, McpError> {
-        let group = functions::profile::get_repository_branch_group(profile_name, group_name)
-            .await
-            .map_err(|e| McpError::internal_error(e, None))?;
-
-        let formatted =
-            repository_branch_group_markdown_with_timezone(&group, self.timezone.as_ref());
-        let content = Content::text(formatted.0);
-
-        Ok(CallToolResult {
-            content: vec![content],
-            is_error: Some(false),
-        })
+        tools_interface::repository_branch_group::get_repository_branch_group(
+            &self.timezone,
+            profile_name,
+            group_name,
+        )
+        .await
     }
 
     #[tool(
@@ -915,20 +500,11 @@ impl GitInsightTools {
         )]
         days: i64,
     ) -> Result<CallToolResult, McpError> {
-        let removed_groups =
-            functions::profile::cleanup_repository_branch_groups(profile_name, days)
-                .await
-                .map_err(|e| McpError::internal_error(e, None))?;
-
-        let content =
-            Content::text(serde_json::to_string_pretty(&removed_groups).map_err(|e| {
-                McpError::internal_error(format!("Failed to serialize result: {}", e), None)
-            })?);
-
-        Ok(CallToolResult {
-            content: vec![content],
-            is_error: Some(false),
-        })
+        tools_interface::repository_branch_group::cleanup_repository_branch_groups(
+            profile_name,
+            days,
+        )
+        .await
     }
 }
 
