@@ -220,4 +220,64 @@ impl MultiResourceFetcher {
 
         Ok(diffs_by_repo)
     }
+
+    pub async fn fetch_pull_request_files_stats(
+        &self,
+        pr_numbers_of_repositories: Vec<(RepositoryId, Vec<PullRequestNumber>)>,
+    ) -> Result<BTreeMap<RepositoryId, Vec<(PullRequestNumber, Vec<crate::types::PullRequestFile>)>>>
+    {
+        // Fetch file stats from all repositories concurrently
+        let fetch_futures = pr_numbers_of_repositories
+            .into_iter()
+            .map(|(repo_id, pr_numbers)| {
+                let github_client = self.github_client.clone();
+
+                async move {
+                    let mut repo_files = Vec::new();
+
+                    // Fetch each PR file stats sequentially to avoid overwhelming the API
+                    for pr_number in pr_numbers {
+                        match github_client
+                            .fetch_pull_request_files(repo_id.clone(), pr_number)
+                            .await
+                        {
+                            Ok(files) => {
+                                repo_files.push((pr_number, files));
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    "Failed to fetch file stats for PR #{} from {}: {}",
+                                    pr_number.value(),
+                                    repo_id,
+                                    e
+                                );
+                                // Continue to next PR instead of failing completely
+                            }
+                        }
+                    }
+
+                    Ok::<_, anyhow::Error>((repo_id, repo_files))
+                }
+            });
+
+        let results: Vec<
+            Result<(
+                RepositoryId,
+                Vec<(PullRequestNumber, Vec<crate::types::PullRequestFile>)>,
+            )>,
+        > = stream::iter(fetch_futures)
+            .buffer_unordered(10) // Process up to 10 repositories concurrently
+            .collect()
+            .await;
+
+        let files_by_repo: BTreeMap<
+            RepositoryId,
+            Vec<(PullRequestNumber, Vec<crate::types::PullRequestFile>)>,
+        > = results
+            .into_iter()
+            .filter_map(|result| result.ok())
+            .collect();
+
+        Ok(files_by_repo)
+    }
 }

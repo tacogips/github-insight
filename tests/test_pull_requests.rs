@@ -10,7 +10,10 @@ use serial_test::serial;
 
 mod test_util;
 use github_insight::services::MultiResourceFetcher;
-use github_insight::types::{IssueOrPullrequest, PullRequestNumber, RepositoryId, SearchQuery};
+use github_insight::tools::functions;
+use github_insight::types::{
+    IssueOrPullrequest, PullRequestNumber, PullRequestUrl, RepositoryId, SearchQuery,
+};
 use test_util::create_test_github_client;
 
 /// Test fetching multiple pull requests by numbers from the React repository
@@ -864,4 +867,714 @@ async fn test_multi_resource_fetcher_pull_request_diffs() {
             diff.len()
         );
     }
+}
+
+/// Test fetching pull request files list
+///
+/// This test verifies that the client can successfully fetch the list of changed files
+/// in a pull request. The files list contains only metadata, no patch content.
+#[tokio::test]
+#[serial]
+#[cfg(feature = "integration-tests")]
+async fn test_fetch_pull_request_files() {
+    // Initialize GitHub client with token (if available) and reasonable timeout
+    let client = create_test_github_client();
+
+    // Create repository ID for the test repository
+    let repository_id =
+        RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
+
+    // Test with PR #5 from the test repository
+    let pr_number = PullRequestNumber::new(5);
+
+    // Fetch the pull request files
+    let result = client
+        .fetch_pull_request_files(repository_id.clone(), pr_number)
+        .await;
+
+    // Verify the request succeeded
+    assert!(
+        result.is_ok(),
+        "Failed to fetch pull request files: {:?}",
+        result
+    );
+
+    let files = result.unwrap();
+
+    // Verify we got some files
+    assert!(!files.is_empty(), "Files list should not be empty");
+
+    // Verify file metadata is present
+    for file in &files {
+        assert!(!file.filename.is_empty(), "Filename should not be empty");
+        assert!(!file.status.is_empty(), "Status should not be empty");
+        assert!(!file.sha.is_empty(), "SHA should not be empty");
+
+        // Verify patch is always None (use fetch_pull_request_file_content for patches)
+        assert!(
+            file.patch.is_none(),
+            "Patch should always be None in file list"
+        );
+
+        println!(
+            "File: {} ({}, +{} -{} changes)",
+            file.filename, file.status, file.additions, file.deletions
+        );
+    }
+
+    println!(
+        "Successfully fetched {} files for PR #{}",
+        files.len(),
+        pr_number.value()
+    );
+}
+
+/// Test fetching individual file content from pull request
+///
+/// This test verifies that the client can successfully fetch the diff content
+/// for a specific file in a pull request.
+#[tokio::test]
+#[serial]
+#[cfg(feature = "integration-tests")]
+async fn test_fetch_pull_request_file_content() {
+    // Initialize GitHub client with token (if available) and reasonable timeout
+    let client = create_test_github_client();
+
+    // Create repository ID for the test repository
+    let repository_id =
+        RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
+
+    // Test with PR #5 from the test repository
+    let pr_number = PullRequestNumber::new(5);
+
+    // First, get the list of files
+    let files = client
+        .fetch_pull_request_files(repository_id.clone(), pr_number)
+        .await
+        .expect("Failed to fetch file list");
+
+    assert!(!files.is_empty(), "Files list should not be empty");
+
+    // Get the first file to test with
+    let test_file = &files[0];
+    println!("Testing with file: {}", test_file.filename);
+
+    // Fetch the content for this specific file
+    let result = client
+        .fetch_pull_request_file_content(repository_id.clone(), pr_number, &test_file.filename)
+        .await;
+
+    // Verify the request succeeded
+    assert!(result.is_ok(), "Failed to fetch file content: {:?}", result);
+
+    let patch_opt = result.unwrap();
+
+    // Some files might not have patches (e.g., binary files, very large files)
+    if let Some(patch) = patch_opt {
+        assert!(!patch.is_empty(), "Patch should not be empty if present");
+
+        // Verify patch contains diff markers
+        assert!(
+            patch.contains("@@"),
+            "Patch should contain '@@ ... @@' markers"
+        );
+
+        println!(
+            "File: {} ({}, +{} -{} changes)",
+            test_file.filename, test_file.status, test_file.additions, test_file.deletions
+        );
+        println!("Patch size: {} bytes", patch.len());
+
+        // Print first few lines of the patch for verification
+        println!("First 5 lines of patch:");
+        for (i, line) in patch.lines().take(5).enumerate() {
+            println!("  {}: {}", i + 1, line);
+        }
+
+        println!(
+            "Successfully fetched file content for {} in PR #{}",
+            test_file.filename,
+            pr_number.value()
+        );
+    } else {
+        println!(
+            "File {} has no patch content (binary or very large file)",
+            test_file.filename
+        );
+    }
+}
+
+/// Test complete workflow: fetch file list then individual file diffs
+///
+/// This test demonstrates the recommended workflow: first fetch file list (lightweight)
+/// to get file metadata, then fetch diffs for specific files of interest.
+#[tokio::test]
+#[serial]
+#[cfg(feature = "integration-tests")]
+async fn test_pull_request_files_workflow() {
+    // Initialize GitHub client with token (if available) and reasonable timeout
+    let client = create_test_github_client();
+
+    // Create repository ID for the test repository
+    let repository_id =
+        RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
+
+    // Test with PR #5 from the test repository
+    let pr_number = PullRequestNumber::new(5);
+
+    // Step 1: Fetch file list (lightweight, no patch content)
+    let files = client
+        .fetch_pull_request_files(repository_id.clone(), pr_number)
+        .await
+        .expect("Failed to fetch file list");
+
+    assert!(!files.is_empty(), "Should have at least one file");
+
+    println!("Step 1: Fetched {} files", files.len());
+    for file in &files {
+        println!(
+            "  - {} ({}, +{} -{} changes)",
+            file.filename, file.status, file.additions, file.deletions
+        );
+        assert!(file.patch.is_none(), "Patch should always be None");
+    }
+
+    // Step 2: Fetch diff for a specific file of interest
+    let target_file = &files[0];
+    println!("\nStep 2: Fetching diff for {}", target_file.filename);
+
+    let patch_opt = client
+        .fetch_pull_request_file_content(repository_id.clone(), pr_number, &target_file.filename)
+        .await
+        .expect("Failed to fetch file content");
+
+    // Step 3: Process the file diff
+    if let Some(patch) = patch_opt {
+        println!("\nStep 3: Processing file diff:");
+        println!("  Filename: {}", target_file.filename);
+        println!("  Status: {}", target_file.status);
+        println!("  Additions: {}", target_file.additions);
+        println!("  Deletions: {}", target_file.deletions);
+        println!("  Patch size: {} bytes", patch.len());
+        println!("  Patch preview (first 10 lines):");
+        for (i, line) in patch.lines().take(10).enumerate() {
+            println!("    {}: {}", i + 1, line);
+        }
+
+        // Verify patch format
+        assert!(
+            patch.contains("@@"),
+            "Patch should contain unified diff markers"
+        );
+    } else {
+        println!(
+            "\nStep 3: File {} has no patch (binary or very large file)",
+            target_file.filename
+        );
+    }
+
+    println!(
+        "\nWorkflow completed: Successfully fetched file list and individual file diff for PR #{}",
+        pr_number.value()
+    );
+}
+
+/// Test fetching pull request diff contents without skip/limit
+///
+/// This test verifies that the get_pull_request_diff_contents function
+/// can fetch the complete diff for a specific file when no skip/limit is specified.
+#[tokio::test]
+#[serial]
+#[cfg(feature = "integration-tests")]
+async fn test_get_pull_request_diff_contents_full() {
+    let client = create_test_github_client();
+
+    // Use PR #5 from test repository
+    let pr_url =
+        PullRequestUrl("https://github.com/tacogips/gitcodes-mcp-test-1/pull/5".to_string());
+
+    // First, get the list of files to find a valid file path
+    let repository_id =
+        RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
+    let pr_number = PullRequestNumber::new(5);
+
+    let files = client
+        .fetch_pull_request_files(repository_id, pr_number)
+        .await
+        .expect("Failed to fetch file list");
+
+    assert!(!files.is_empty(), "Should have at least one file");
+
+    let test_file_path = files[0].filename.clone();
+    println!("Testing with file: {}", test_file_path);
+
+    // Fetch the complete diff content
+    let result = functions::pull_request::get_pull_request_diff_contents(
+        &client,
+        pr_url,
+        test_file_path.clone(),
+        None, // no skip
+        None, // no limit
+    )
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "Failed to fetch diff contents: {:?}",
+        result
+    );
+
+    let diff = result.unwrap();
+
+    // Verify the diff is not empty
+    assert!(!diff.is_empty(), "Diff should not be empty");
+
+    // Verify it contains diff markers
+    assert!(
+        diff.contains("@@"),
+        "Diff should contain unified diff markers"
+    );
+
+    let line_count = diff.lines().count();
+    println!(
+        "Successfully fetched full diff for {}: {} lines",
+        test_file_path, line_count
+    );
+
+    // Print first 10 lines for verification
+    println!("First 10 lines:");
+    for (i, line) in diff.lines().take(10).enumerate() {
+        println!("  {}: {}", i + 1, line);
+    }
+}
+
+/// Test fetching pull request diff contents with skip parameter
+///
+/// This test verifies that the skip parameter correctly skips lines
+/// from the beginning of the diff.
+#[tokio::test]
+#[serial]
+#[cfg(feature = "integration-tests")]
+async fn test_get_pull_request_diff_contents_with_skip() {
+    let client = create_test_github_client();
+
+    let pr_url =
+        PullRequestUrl("https://github.com/tacogips/gitcodes-mcp-test-1/pull/5".to_string());
+
+    // Get file list
+    let repository_id =
+        RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
+    let pr_number = PullRequestNumber::new(5);
+
+    let files = client
+        .fetch_pull_request_files(repository_id, pr_number)
+        .await
+        .expect("Failed to fetch file list");
+
+    assert!(!files.is_empty(), "Should have at least one file");
+
+    let test_file_path = files[0].filename.clone();
+
+    // First fetch full diff to get baseline
+    let full_diff = functions::pull_request::get_pull_request_diff_contents(
+        &client,
+        pr_url.clone(),
+        test_file_path.clone(),
+        None,
+        None,
+    )
+    .await
+    .expect("Failed to fetch full diff");
+
+    let full_lines: Vec<&str> = full_diff.lines().collect();
+    let total_lines = full_lines.len();
+
+    println!("Total lines in full diff: {}", total_lines);
+
+    // Test with skip=5
+    let skip_count = 5;
+    if total_lines > skip_count {
+        let result = functions::pull_request::get_pull_request_diff_contents(
+            &client,
+            pr_url,
+            test_file_path.clone(),
+            Some(skip_count as u32),
+            None,
+        )
+        .await;
+
+        assert!(
+            result.is_ok(),
+            "Failed to fetch diff with skip: {:?}",
+            result
+        );
+
+        let skipped_diff = result.unwrap();
+        let skipped_lines: Vec<&str> = skipped_diff.lines().collect();
+
+        // Verify we skipped the correct number of lines
+        assert_eq!(
+            skipped_lines.len(),
+            total_lines - skip_count,
+            "Should have {} lines after skipping {}",
+            total_lines - skip_count,
+            skip_count
+        );
+
+        // Verify the first line matches the expected line from full diff
+        assert_eq!(
+            skipped_lines[0],
+            full_lines[skip_count],
+            "First line after skip should match line {} from full diff",
+            skip_count + 1
+        );
+
+        println!(
+            "Successfully fetched diff with skip={}: {} lines",
+            skip_count,
+            skipped_lines.len()
+        );
+    } else {
+        println!(
+            "Skipping test: total lines ({}) <= skip count ({})",
+            total_lines, skip_count
+        );
+    }
+}
+
+/// Test fetching pull request diff contents with limit parameter
+///
+/// This test verifies that the limit parameter correctly limits the number
+/// of lines returned.
+#[tokio::test]
+#[serial]
+#[cfg(feature = "integration-tests")]
+async fn test_get_pull_request_diff_contents_with_limit() {
+    let client = create_test_github_client();
+
+    let pr_url =
+        PullRequestUrl("https://github.com/tacogips/gitcodes-mcp-test-1/pull/5".to_string());
+
+    // Get file list
+    let repository_id =
+        RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
+    let pr_number = PullRequestNumber::new(5);
+
+    let files = client
+        .fetch_pull_request_files(repository_id, pr_number)
+        .await
+        .expect("Failed to fetch file list");
+
+    assert!(!files.is_empty(), "Should have at least one file");
+
+    let test_file_path = files[0].filename.clone();
+
+    // First fetch full diff to get baseline
+    let full_diff = functions::pull_request::get_pull_request_diff_contents(
+        &client,
+        pr_url.clone(),
+        test_file_path.clone(),
+        None,
+        None,
+    )
+    .await
+    .expect("Failed to fetch full diff");
+
+    let full_lines: Vec<&str> = full_diff.lines().collect();
+    let total_lines = full_lines.len();
+
+    println!("Total lines in full diff: {}", total_lines);
+
+    // Test with limit=10
+    let limit_count = 10;
+    if total_lines > 0 {
+        let result = functions::pull_request::get_pull_request_diff_contents(
+            &client,
+            pr_url,
+            test_file_path.clone(),
+            None,
+            Some(limit_count),
+        )
+        .await;
+
+        assert!(
+            result.is_ok(),
+            "Failed to fetch diff with limit: {:?}",
+            result
+        );
+
+        let limited_diff = result.unwrap();
+        let limited_lines: Vec<&str> = limited_diff.lines().collect();
+
+        // Verify line count is at most the limit
+        let expected_lines = std::cmp::min(limit_count as usize, total_lines);
+        assert_eq!(
+            limited_lines.len(),
+            expected_lines,
+            "Should have at most {} lines",
+            limit_count
+        );
+
+        // Verify the lines match the beginning of full diff
+        for (i, line) in limited_lines.iter().enumerate() {
+            assert_eq!(
+                *line,
+                full_lines[i],
+                "Line {} should match full diff",
+                i + 1
+            );
+        }
+
+        println!(
+            "Successfully fetched diff with limit={}: {} lines",
+            limit_count,
+            limited_lines.len()
+        );
+    }
+}
+
+/// Test fetching pull request diff contents with both skip and limit
+///
+/// This test verifies that skip and limit work correctly together to return
+/// a specific range of lines from the diff.
+#[tokio::test]
+#[serial]
+#[cfg(feature = "integration-tests")]
+async fn test_get_pull_request_diff_contents_with_skip_and_limit() {
+    let client = create_test_github_client();
+
+    let pr_url =
+        PullRequestUrl("https://github.com/tacogips/gitcodes-mcp-test-1/pull/5".to_string());
+
+    // Get file list
+    let repository_id =
+        RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
+    let pr_number = PullRequestNumber::new(5);
+
+    let files = client
+        .fetch_pull_request_files(repository_id, pr_number)
+        .await
+        .expect("Failed to fetch file list");
+
+    assert!(!files.is_empty(), "Should have at least one file");
+
+    let test_file_path = files[0].filename.clone();
+
+    // First fetch full diff to get baseline
+    let full_diff = functions::pull_request::get_pull_request_diff_contents(
+        &client,
+        pr_url.clone(),
+        test_file_path.clone(),
+        None,
+        None,
+    )
+    .await
+    .expect("Failed to fetch full diff");
+
+    let full_lines: Vec<&str> = full_diff.lines().collect();
+    let total_lines = full_lines.len();
+
+    println!("Total lines in full diff: {}", total_lines);
+
+    // Test with skip=3 and limit=7 (lines 4-10)
+    let skip_count = 3;
+    let limit_count = 7;
+
+    if total_lines > skip_count {
+        let result = functions::pull_request::get_pull_request_diff_contents(
+            &client,
+            pr_url,
+            test_file_path.clone(),
+            Some(skip_count as u32),
+            Some(limit_count),
+        )
+        .await;
+
+        assert!(
+            result.is_ok(),
+            "Failed to fetch diff with skip and limit: {:?}",
+            result
+        );
+
+        let ranged_diff = result.unwrap();
+        let ranged_lines: Vec<&str> = ranged_diff.lines().collect();
+
+        // Calculate expected number of lines
+        let expected_lines = std::cmp::min(limit_count as usize, total_lines - skip_count);
+        assert_eq!(
+            ranged_lines.len(),
+            expected_lines,
+            "Should have {} lines (skip={}, limit={})",
+            expected_lines,
+            skip_count,
+            limit_count
+        );
+
+        // Verify the lines match the expected range from full diff
+        for (i, line) in ranged_lines.iter().enumerate() {
+            let full_diff_idx = skip_count + i;
+            assert_eq!(
+                *line,
+                full_lines[full_diff_idx],
+                "Line {} should match line {} from full diff",
+                i + 1,
+                full_diff_idx + 1
+            );
+        }
+
+        println!(
+            "Successfully fetched diff with skip={} and limit={}: {} lines",
+            skip_count,
+            limit_count,
+            ranged_lines.len()
+        );
+
+        // Print the ranged lines for verification
+        println!(
+            "Lines {} to {}:",
+            skip_count + 1,
+            skip_count + ranged_lines.len()
+        );
+        for (i, line) in ranged_lines.iter().enumerate() {
+            println!("  {}: {}", skip_count + i + 1, line);
+        }
+    } else {
+        println!(
+            "Skipping test: total lines ({}) <= skip count ({})",
+            total_lines, skip_count
+        );
+    }
+}
+
+/// Test error handling when skip exceeds total lines
+///
+/// This test verifies that the function returns an appropriate error when
+/// the skip value is greater than the total number of lines in the diff.
+#[tokio::test]
+#[serial]
+#[cfg(feature = "integration-tests")]
+async fn test_get_pull_request_diff_contents_skip_exceeds_total() {
+    let client = create_test_github_client();
+
+    let pr_url =
+        PullRequestUrl("https://github.com/tacogips/gitcodes-mcp-test-1/pull/5".to_string());
+
+    // Get file list
+    let repository_id =
+        RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
+    let pr_number = PullRequestNumber::new(5);
+
+    let files = client
+        .fetch_pull_request_files(repository_id, pr_number)
+        .await
+        .expect("Failed to fetch file list");
+
+    assert!(!files.is_empty(), "Should have at least one file");
+
+    let test_file_path = files[0].filename.clone();
+
+    // First fetch full diff to get total line count
+    let full_diff = functions::pull_request::get_pull_request_diff_contents(
+        &client,
+        pr_url.clone(),
+        test_file_path.clone(),
+        None,
+        None,
+    )
+    .await
+    .expect("Failed to fetch full diff");
+
+    let total_lines = full_diff.lines().count();
+    println!("Total lines in full diff: {}", total_lines);
+
+    // Try to skip more lines than exist
+    let excessive_skip = (total_lines + 10) as u32;
+
+    let result = functions::pull_request::get_pull_request_diff_contents(
+        &client,
+        pr_url,
+        test_file_path,
+        Some(excessive_skip),
+        None,
+    )
+    .await;
+
+    // Should return an error
+    assert!(
+        result.is_err(),
+        "Should return error when skip exceeds total lines"
+    );
+
+    let error = result.unwrap_err();
+    let error_msg = error.to_string();
+    assert!(
+        error_msg.contains("exceeds total lines"),
+        "Error message should mention exceeding total lines: {}",
+        error_msg
+    );
+
+    println!(
+        "Successfully detected skip exceeding total lines: {}",
+        error_msg
+    );
+}
+
+/// Test with skip=0 (should behave same as no skip)
+///
+/// This test verifies that skip=0 returns the same result as not specifying skip.
+#[tokio::test]
+#[serial]
+#[cfg(feature = "integration-tests")]
+async fn test_get_pull_request_diff_contents_skip_zero() {
+    let client = create_test_github_client();
+
+    let pr_url =
+        PullRequestUrl("https://github.com/tacogips/gitcodes-mcp-test-1/pull/5".to_string());
+
+    // Get file list
+    let repository_id =
+        RepositoryId::new("tacogips".to_string(), "gitcodes-mcp-test-1".to_string());
+    let pr_number = PullRequestNumber::new(5);
+
+    let files = client
+        .fetch_pull_request_files(repository_id, pr_number)
+        .await
+        .expect("Failed to fetch file list");
+
+    assert!(!files.is_empty(), "Should have at least one file");
+
+    let test_file_path = files[0].filename.clone();
+
+    // Fetch with no skip
+    let no_skip_diff = functions::pull_request::get_pull_request_diff_contents(
+        &client,
+        pr_url.clone(),
+        test_file_path.clone(),
+        None,
+        None,
+    )
+    .await
+    .expect("Failed to fetch diff without skip");
+
+    // Fetch with skip=0
+    let skip_zero_diff = functions::pull_request::get_pull_request_diff_contents(
+        &client,
+        pr_url,
+        test_file_path,
+        Some(0),
+        None,
+    )
+    .await
+    .expect("Failed to fetch diff with skip=0");
+
+    // Both should be identical
+    assert_eq!(
+        no_skip_diff, skip_zero_diff,
+        "skip=0 should produce the same result as no skip"
+    );
+
+    println!(
+        "Verified that skip=0 produces same result as no skip: {} lines",
+        no_skip_diff.lines().count()
+    );
 }
