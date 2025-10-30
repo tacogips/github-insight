@@ -898,6 +898,10 @@ impl GitHubClient {
     /// list of changed files, and you can then fetch individual file diffs using
     /// `fetch_pull_request_file_content` for files of interest.
     ///
+    /// The method automatically handles pagination using the GitHub REST API with
+    /// a page size of 100 files (the maximum allowed), ensuring all files are
+    /// retrieved regardless of the total count.
+    ///
     /// # Arguments
     ///
     /// * `repository_id` - The repository identifier containing owner and repository name
@@ -945,42 +949,65 @@ impl GitHubClient {
         repository_id: crate::types::RepositoryId,
         pull_request_number: crate::types::PullRequestNumber,
     ) -> Result<Vec<crate::types::PullRequestFile>> {
-        let url = format!(
+        let base_url = format!(
             "https://api.github.com/repos/{}/{}/pulls/{}/files",
             repository_id.owner().as_str(),
             repository_id.repo_name().as_str(),
             pull_request_number.value()
         );
 
-        // Build request with standard JSON Accept header
         let req_client = reqwest::Client::new();
-        let mut request = req_client
-            .get(&url)
-            .header("Accept", "application/vnd.github.v3+json")
-            .header("User-Agent", "github-insight");
+        let mut all_files = Vec::new();
+        let mut page = 1;
+        let per_page = 100; // Maximum allowed by GitHub API
 
-        // Add authorization header if token is available
-        if let Some(token) = &self.github_token {
-            request = request.header("Authorization", format!("Bearer {}", token));
+        loop {
+            let url = format!("{}?per_page={}&page={}", base_url, per_page, page);
+
+            // Build request with standard JSON Accept header
+            let mut request = req_client
+                .get(&url)
+                .header("Accept", "application/vnd.github.v3+json")
+                .header("User-Agent", "github-insight");
+
+            // Add authorization header if token is available
+            if let Some(token) = &self.github_token {
+                request = request.header("Authorization", format!("Bearer {}", token));
+            }
+
+            let response = request
+                .send()
+                .await
+                .context("Failed to fetch pull request files")?;
+
+            let mut files: Vec<crate::types::PullRequestFile> = response
+                .json()
+                .await
+                .context("Failed to parse pull request files response")?;
+
+            // Check if we got any files
+            let files_count = files.len();
+            if files_count == 0 {
+                break;
+            }
+
+            // Always remove patch content to reduce memory usage
+            // Use fetch_pull_request_file_content() to get individual file diffs
+            for file in &mut files {
+                file.patch = None;
+            }
+
+            all_files.extend(files);
+
+            // If we got fewer files than per_page, we've reached the last page
+            if files_count < per_page {
+                break;
+            }
+
+            page += 1;
         }
 
-        let response = request
-            .send()
-            .await
-            .context("Failed to fetch pull request files")?;
-
-        let mut files: Vec<crate::types::PullRequestFile> = response
-            .json()
-            .await
-            .context("Failed to parse pull request files response")?;
-
-        // Always remove patch content to reduce memory usage
-        // Use fetch_pull_request_file_content() to get individual file diffs
-        for file in &mut files {
-            file.patch = None;
-        }
-
-        Ok(files)
+        Ok(all_files)
     }
 
     /// Fetches the diff content for a specific file in a pull request.
@@ -1044,8 +1071,20 @@ impl GitHubClient {
         pull_request_number: crate::types::PullRequestNumber,
         file_path: &str,
     ) -> Result<Option<String>> {
-        // First, get all files to find the one we're looking for
-        let url = format!(
+        // First, verify the file exists in the PR using fetch_pull_request_files (with pagination)
+        let files = self
+            .fetch_pull_request_files(repository_id.clone(), pull_request_number)
+            .await?;
+
+        // Find the file to verify it exists
+        files
+            .iter()
+            .find(|f| f.filename == file_path)
+            .ok_or_else(|| anyhow::anyhow!("File '{}' not found in pull request", file_path))?;
+
+        // Now fetch the patch content by making a separate request with per_page=1
+        // and iterating through pages until we find the target file
+        let base_url = format!(
             "https://api.github.com/repos/{}/{}/pulls/{}/files",
             repository_id.owner().as_str(),
             repository_id.repo_name().as_str(),
@@ -1053,32 +1092,55 @@ impl GitHubClient {
         );
 
         let req_client = reqwest::Client::new();
-        let mut request = req_client
-            .get(&url)
-            .header("Accept", "application/vnd.github.v3+json")
-            .header("User-Agent", "github-insight");
+        let per_page = 100; // Maximum allowed by GitHub API
+        let mut page = 1;
 
-        if let Some(token) = &self.github_token {
-            request = request.header("Authorization", format!("Bearer {}", token));
+        loop {
+            let url = format!("{}?per_page={}&page={}", base_url, per_page, page);
+
+            let mut request = req_client
+                .get(&url)
+                .header("Accept", "application/vnd.github.v3+json")
+                .header("User-Agent", "github-insight");
+
+            if let Some(token) = &self.github_token {
+                request = request.header("Authorization", format!("Bearer {}", token));
+            }
+
+            let response = request
+                .send()
+                .await
+                .context("Failed to fetch pull request files")?;
+
+            let files: Vec<crate::types::PullRequestFile> = response
+                .json()
+                .await
+                .context("Failed to parse pull request files response")?;
+
+            let files_count = files.len();
+
+            if files_count == 0 {
+                break;
+            }
+
+            // Look for the target file in this page
+            if let Some(file) = files.into_iter().find(|f| f.filename == file_path) {
+                return Ok(file.patch);
+            }
+
+            // If we got fewer files than per_page, we've reached the last page
+            if files_count < per_page {
+                break;
+            }
+
+            page += 1;
         }
 
-        let response = request
-            .send()
-            .await
-            .context("Failed to fetch pull request files")?;
-
-        let files: Vec<crate::types::PullRequestFile> = response
-            .json()
-            .await
-            .context("Failed to parse pull request files response")?;
-
-        // Find the file and return its patch
-        let file = files
-            .into_iter()
-            .find(|f| f.filename == file_path)
-            .ok_or_else(|| anyhow::anyhow!("File '{}' not found in pull request", file_path))?;
-
-        Ok(file.patch)
+        // This shouldn't happen since we already verified the file exists
+        Err(anyhow::anyhow!(
+            "File '{}' exists but patch content could not be retrieved",
+            file_path
+        ))
     }
 }
 
