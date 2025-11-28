@@ -1,6 +1,9 @@
 /// Output formatting utilities for JSON and Markdown representations
 pub mod formatter;
 
+/// Git repository operations for detecting current branch and repository information
+pub mod git;
+
 /// GitHub API client implementations and utilities for fetching repository data
 pub mod github;
 

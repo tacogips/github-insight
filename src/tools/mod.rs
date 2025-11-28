@@ -131,20 +131,35 @@ impl GitInsightTools {
     }
 
     #[tool(
-        description = "Get pull requests by their URLs from specified repositories. Returns detailed pull request information including comments, formatted as markdown with comprehensive details including title, body, labels, assignees, creation/update dates, review status, and all comments with timestamps."
+        description = "Get pull requests by their URLs from specified repositories or by branch name. Supports two modes: 1) URL mode - provide pull_request_urls to get PR details by direct URLs, 2) Branch mode - provide branch_name (and optionally working_directory) to find PRs for a branch. If no parameters are specified, defaults to finding PRs for the current branch in the current directory. Returns detailed pull request information including comments, formatted as markdown with comprehensive details including title, body, labels, assignees, creation/update dates, review status, and all comments with timestamps."
     )]
     async fn get_pull_request_details(
         &self,
         #[tool(param)]
         #[schemars(
-            description = "Pull request URLs to fetch. Examples: ['https://github.com/rust-lang/rust/pull/98765', 'https://github.com/tokio-rs/tokio/pull/4321']. To get pull request URLs from repositories in the current profile, use list_repository_urls_in_current_profile to get repository URLs and pass them to this parameter."
+            description = "Optional pull request URLs to fetch. Examples: ['https://github.com/rust-lang/rust/pull/98765', 'https://github.com/tokio-rs/tokio/pull/4321']. Use this for URL mode. To get pull request URLs from repositories in the current profile, use list_repository_urls_in_current_profile to get repository URLs and pass them to this parameter."
         )]
-        pull_request_urls: Vec<String>,
+        #[schemars(default)]
+        pull_request_urls: Option<Vec<String>>,
+        #[tool(param)]
+        #[schemars(
+            description = "Optional working directory path (defaults to current directory). Used in branch mode. Example: '/path/to/repo', '.', '/home/user/projects/myrepo'"
+        )]
+        #[schemars(default)]
+        working_directory: Option<String>,
+        #[tool(param)]
+        #[schemars(
+            description = "Optional branch name to search for. Used in branch mode. If not specified, uses the current branch from the working directory. Example: 'feature-auth', 'main', 'develop'"
+        )]
+        #[schemars(default)]
+        branch_name: Option<String>,
     ) -> Result<CallToolResult, McpError> {
         tools_interface::get_pull_request_details::get_pull_request_details(
             &self.github_token,
             &self.timezone,
             pull_request_urls,
+            working_directory,
+            branch_name,
         )
         .await
     }
@@ -582,7 +597,25 @@ Examples:
 {{"name": "get_pull_request_diff_contents", "arguments": {{"pull_request_url": "https://github.com/rust-lang/rust/pull/98765", "file_path": "src/lib.rs", "skip": 10, "limit": 40}}}}
 ```
 
-### 6. get_project_details
+### 6. get_pull_request_url_for_branch
+Get the pull request URL for a Git branch. If branch name is not specified, automatically detects the current branch from the working directory. Finds the repository URL from git remote and searches for pull requests with the specified branch as the head branch. Similar to 'gh pr view' command functionality.
+
+Examples:
+```json
+// Get PR for current branch in current directory
+{{"name": "get_pull_request_url_for_branch", "arguments": {{}}}}
+
+// Get PR for specific branch name
+{{"name": "get_pull_request_url_for_branch", "arguments": {{"branch_name": "feature-auth"}}}}
+
+// Get PR for current branch in specific directory
+{{"name": "get_pull_request_url_for_branch", "arguments": {{"working_directory": "/path/to/repo"}}}}
+
+// Get PR for specific branch with light format
+{{"name": "get_pull_request_url_for_branch", "arguments": {{"branch_name": "develop", "output_option": "light"}}}}
+```
+
+### 7. get_project_details
 Get project details by their URLs. Returns detailed project information formatted as markdown with comprehensive metadata including title, description, creation/update dates, project node ID, and other project properties. The project node ID can be used for project updates.
 
 Examples:
@@ -591,7 +624,7 @@ Examples:
 {{"name": "get_project_details", "arguments": {{"project_urls": ["https://github.com/users/username/projects/1", "https://github.com/orgs/orgname/projects/5"]}}}}
 ```
 
-### 7. get_repository_details
+### 8. get_repository_details
 Get repository details by URLs. Returns detailed repository information formatted as markdown array with comprehensive metadata including description, statistics, and configuration details. Releases section can be limited using the showing_release_limit parameter.
 
 Examples:
@@ -606,7 +639,7 @@ Examples:
 {{"name": "get_repository_details", "arguments": {{"repository_urls": ["https://github.com/rust-lang/rust"], "showing_release_limit": 5}}}}
 ```
 
-### 8. search_in_repositories
+### 9. search_in_repositories
 Search across multiple repositories for issues, PRs, and projects. Comprehensive search across multiple resource types with support for specific repository targeting and advanced pagination.
 
 Examples:
@@ -633,7 +666,7 @@ Examples:
 }}}}
 ```
 
-### 9. list_repository_urls_in_current_profile
+### 10. list_repository_urls_in_current_profile
 List all repository URLs registered in the current profile. Returns an array of repository URLs for repositories managed by the profile.
 
 Example return value: ["https://github.com/rust-lang/rust", "https://github.com/tokio-rs/tokio"]
@@ -644,7 +677,7 @@ Examples:
 {{"name": "list_repository_urls_in_current_profile", "arguments": {{}}}}
 ```
 
-### 10. list_project_urls_in_current_profile
+### 11. list_project_urls_in_current_profile
 List all project URLs registered in the current profile. Returns an array of project URLs for projects managed by the profile.
 
 Example return value: ["https://github.com/users/username/projects/1", "https://github.com/orgs/orgname/projects/5"]
@@ -655,7 +688,7 @@ Examples:
 {{"name": "list_project_urls_in_current_profile", "arguments": {{}}}}
 ```
 
-### 11. register_repository_branch_group
+### 12. register_repository_branch_group
 Register a repository branch group to a profile for managing collections of branches. Returns the final group name (either provided or auto-generated).
 
 Examples:
@@ -667,7 +700,7 @@ Examples:
 {{"name": "register_repository_branch_group", "arguments": {{"profile_name": "default", "group_name": "feature-branches", "pairs": ["https://github.com/owner/repo@feature-x"]}}}}
 ```
 
-### 12. unregister_repository_branch_group
+### 13. unregister_repository_branch_group
 Remove a repository branch group from a profile. Returns the removed group information.
 
 Examples:
@@ -676,7 +709,7 @@ Examples:
 {{"name": "unregister_repository_branch_group", "arguments": {{"profile_name": "default", "group_name": "old-group"}}}}
 ```
 
-### 13. add_branch_to_branch_group
+### 14. add_branch_to_branch_group
 Add branches to an existing group. Allows expanding group membership.
 
 Examples:
@@ -685,7 +718,7 @@ Examples:
 {{"name": "add_branch_to_branch_group", "arguments": {{"profile_name": "default", "group_name": "feature-branches", "branch_specifiers": ["https://github.com/owner/repo@new-feature"]}}}}
 ```
 
-### 14. remove_branch_from_branch_group
+### 15. remove_branch_from_branch_group
 Remove branches from a group. Allows reducing group membership.
 
 Examples:
@@ -694,7 +727,7 @@ Examples:
 {{"name": "remove_branch_from_branch_group", "arguments": {{"profile_name": "default", "group_name": "feature-branches", "branch_specifiers": ["https://github.com/owner/repo@old-feature"]}}}}
 ```
 
-### 15. rename_repository_branch_group
+### 16. rename_repository_branch_group
 Rename a repository branch group. Changes the group's identifier while preserving its contents.
 
 Examples:
@@ -703,7 +736,7 @@ Examples:
 {{"name": "rename_repository_branch_group", "arguments": {{"profile_name": "default", "old_name": "temp-group", "new_name": "production-branches"}}}}
 ```
 
-### 16. show_repository_branch_groups
+### 17. show_repository_branch_groups
 List all repository branch groups in a profile. Returns group names for management operations.
 
 Examples:
@@ -712,7 +745,7 @@ Examples:
 {{"name": "show_repository_branch_groups", "arguments": {{"profile_name": "default"}}}}
 ```
 
-### 17. get_repository_branch_group
+### 18. get_repository_branch_group
 Show details of a specific repository branch group. Returns comprehensive group information including all branches and timestamps.
 
 Examples:
@@ -721,7 +754,7 @@ Examples:
 {{"name": "get_repository_branch_group", "arguments": {{"profile_name": "default", "group_name": "feature-branches"}}}}
 ```
 
-### 18. cleanup_repository_branch_groups
+### 19. cleanup_repository_branch_groups
 Remove repository branch groups older than N days. Useful for cleaning up temporary or outdated groups.
 
 Examples:
