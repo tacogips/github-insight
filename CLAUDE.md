@@ -144,10 +144,14 @@ Examples:
 - Get specific issues: `{"issue_urls": ["https://github.com/rust-lang/rust/issues/12345", "https://github.com/tokio-rs/tokio/issues/5678"]}`
 
 #### 3. get_pull_request_details
-Get pull requests by their URLs from specified repositories. Returns detailed pull request information including comments, formatted as markdown with comprehensive details including title, body, labels, assignees, creation/update dates, review status, and all comments with timestamps.
+Get pull requests by their URLs from specified repositories or by branch name. Supports two modes: 1) URL mode - provide pull_request_urls to get PR details by direct URLs, 2) Branch mode - provide branch_name (and optionally working_directory) to find PRs for a branch. If no parameters are specified, defaults to finding PRs for the current branch in the current directory. Returns detailed pull request information including comments, formatted as markdown with comprehensive details including title, body, labels, assignees, creation/update dates, review status, and all comments with timestamps.
 
 Examples:
-- Get specific pull requests: `{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}`
+- Get specific pull requests by URL: `{"pull_request_urls": ["https://github.com/rust-lang/rust/pull/98765", "https://github.com/tokio-rs/tokio/pull/4321"]}`
+- Get PR for current branch in current directory: `{}`
+- Get PR for specific branch name: `{"branch_name": "feature-auth"}`
+- Get PR for current branch in specific directory: `{"working_directory": "/path/to/repo"}`
+- Get PR for specific branch in specific directory: `{"branch_name": "develop", "working_directory": "/path/to/repo"}`
 
 #### 4. get_pull_request_code_diff_stats
 Get pull request file statistics by their URLs. Returns file-level change statistics (additions, deletions, changes) for each pull request without the actual diff content. Use this for quick overview of changed files and their modification counts.
@@ -196,7 +200,7 @@ List all project URLs registered in the current profile. Returns project IDs and
 Examples:
 - List all project URLs in current profile: `{}`
 
-#### 11. Repository Branch Group Management Tools
+#### 12. Repository Branch Group Management Tools
 
 Repository branch groups are collections of branches that enable organized management of related branches across multiple repositories. For example, you can group all 'feature-x' branches across different repositories, or collect all 'main' branches for release management.
 
@@ -388,7 +392,7 @@ GITHUB_INSIGHT_GITHUB_TOKEN=ghp_token cargo run --bin github-insight-cli -- [OPT
 - `search`: Search for issues and pull requests across multiple repositories with advanced GitHub search syntax and pagination support. Use `get-issues` and `get-pull-requests` commands to get more detailed information. Note: Repository specifications (repo:owner/name) within the query are not supported and will be ignored - repository filtering is handled by the --repository-url option (expects full GitHub URL format) and registered repositories in the profile
 - `get-project-resources`: Fetch detailed project resources including items, metadata, timestamps, and assignees with comprehensive pagination support. Supports light/rich output format (default: rich). Use `get-issues` and `get-pull-requests` commands to get more detailed information
 - `get-issues`: Fetch detailed issue information including comments, metadata, labels, and timeline events by URLs (formatted as markdown with comprehensive details)
-- `get-pull-requests`: Fetch detailed pull request information including comments, metadata, reviews, and timeline events by URLs (formatted as markdown with comprehensive details)
+- `get-pull-requests`: Fetch detailed pull request information including comments, metadata, reviews, and timeline events. Supports two modes: URL mode (use --urls to specify PR URLs) or branch mode (use --branch-name and/or --working-directory to find PRs by branch). If no parameters specified, defaults to current branch in current directory (formatted as markdown with comprehensive details)
 - `get-repositories`: Fetch detailed repository information including metadata, statistics, releases (with configurable limit using --showing-release-limit, default: 10), milestones (with configurable limit using --showing-milestone-limit, default: 10), and configuration by URLs (formatted as markdown with comprehensive details)
 - `get-projects`: Fetch detailed project information including metadata, description, and timestamps by URLs (formatted as markdown with comprehensive details)
 

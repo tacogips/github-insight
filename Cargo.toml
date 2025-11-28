@@ -79,6 +79,9 @@ regex = "1.10"
 # Progress indicators
 indicatif = "0.17"
 
+# Git repository operations
+git2 = "0.19"
+
 [dev-dependencies]
 # Testing utilities
 mockito = "1.2"

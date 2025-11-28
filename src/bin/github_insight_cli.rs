@@ -25,7 +25,7 @@ use github_insight::tools::functions;
 use github_insight::types::project::{ProjectNumber, ProjectUrl};
 use github_insight::types::repository::{Owner, RepositoryName};
 use github_insight::types::{
-    GroupName, IssueUrl, OutputOption, ProfileName, ProjectId, PullRequestUrl,
+    GroupName, IssueOrPullrequest, IssueUrl, OutputOption, ProfileName, ProjectId, PullRequestUrl,
     RepositoryBranchPair, RepositoryId, RepositoryUrl, SearchQuery,
 };
 
@@ -244,10 +244,17 @@ enum Commands {
         /// GitHub issue URLs to fetch detailed information from - supports multiple URLs for batch processing
         urls: Vec<String>,
     },
-    /// Fetch detailed pull request information including comments, metadata, reviews, and timeline events by URLs
+    /// Fetch detailed pull request information including comments, metadata, reviews, and timeline events. Supports two modes: URL mode (provide urls) or branch mode (provide branch_name and/or working_directory). If no parameters specified, defaults to current branch in current directory.
     GetPullRequests {
-        /// GitHub pull request URLs to fetch detailed information from - supports multiple URLs for batch processing
-        urls: Vec<String>,
+        /// Optional GitHub pull request URLs to fetch detailed information from - supports multiple URLs for batch processing (URL mode)
+        #[arg(long)]
+        urls: Option<Vec<String>>,
+        /// Optional working directory path (defaults to current directory) - used in branch mode
+        #[arg(long)]
+        working_directory: Option<String>,
+        /// Optional branch name to search for - used in branch mode (defaults to current branch if not specified)
+        #[arg(long)]
+        branch_name: Option<String>,
     },
     /// Fetch pull request code diffs in unified diff format by URLs
     GetPullRequestDiffs {
@@ -654,11 +661,17 @@ async fn main() -> Result<()> {
             )
             .await?;
         }
-        Commands::GetPullRequests { urls } => {
-            let pull_request_urls: Vec<PullRequestUrl> =
-                urls.iter().map(|url| PullRequestUrl(url.clone())).collect();
+        Commands::GetPullRequests {
+            urls,
+            working_directory,
+            branch_name,
+        } => {
+            let pull_request_urls =
+                urls.map(|u| u.iter().map(|url| PullRequestUrl(url.clone())).collect());
             handle_get_pull_requests_command(
                 pull_request_urls,
+                working_directory,
+                branch_name,
                 &cli.format,
                 &github_token,
                 &timezone,
@@ -987,20 +1000,78 @@ async fn handle_get_issues_command(
     Ok(())
 }
 
-/// Handle get pull requests command
+/// Handle get pull requests command - supports URL mode and branch mode
 async fn handle_get_pull_requests_command(
-    pull_request_urls: Vec<PullRequestUrl>,
+    pull_request_urls: Option<Vec<PullRequestUrl>>,
+    working_directory: Option<String>,
+    branch_name: Option<String>,
     format: &OutputFormat,
     github_token: &Option<String>,
     timezone: &Option<TimezoneOffset>,
     request_timeout: Option<Duration>,
 ) -> Result<()> {
+    use github_insight::git;
+
     let github_client = GitHubClient::new(github_token.clone(), request_timeout)
         .map_err(|e| anyhow::anyhow!("Failed to create GitHub client: {}", e))?;
 
+    // Determine which mode to use and get PR URLs
+    let pr_urls = if let Some(urls) = pull_request_urls {
+        // URL mode: use provided URLs directly
+        urls
+    } else {
+        // Branch mode: detect branch and search for PRs
+        let work_dir = working_directory.as_deref().unwrap_or(".");
+
+        // Determine branch name: use specified branch or detect current branch
+        let (target_branch, repo_url) = if let Some(branch) = branch_name {
+            // Use specified branch name, but still need repository URL from git
+            let repo_url = git::get_remote_url(work_dir)?;
+            (branch, repo_url)
+        } else {
+            // Get current branch and repository info
+            let repo_info = git::get_repository_info(work_dir)?;
+            (repo_info.current_branch, repo_info.repository_url)
+        };
+
+        // Parse repository URL
+        let repo_url_type = RepositoryUrl(repo_url.clone());
+        let repo_id = RepositoryId::parse_url(&repo_url_type)
+            .map_err(|e| anyhow::anyhow!("Failed to parse repository URL: {}", e))?;
+
+        // Search for pull requests with the specified branch as head
+        let search_query = SearchQuery::new(format!("is:pr head:{}", target_branch));
+
+        let search_results = functions::search::search_resources(
+            &github_client,
+            vec![repo_id.clone()],
+            search_query,
+            Some(10), // Limit to 10 results
+            None,     // No cursors
+        )
+        .await?;
+
+        // Extract PR URLs from search results
+        let mut found_urls = Vec::new();
+        for result in search_results.results {
+            if let IssueOrPullrequest::PullRequest(pr) = result {
+                found_urls.push(PullRequestUrl(pr.pull_request_id.url()));
+            }
+        }
+
+        if found_urls.is_empty() {
+            println!(
+                "No pull requests found for branch '{}' in repository '{}'.",
+                target_branch, repo_url
+            );
+            return Ok(());
+        }
+
+        found_urls
+    };
+
     let pull_requests_by_repo =
-        functions::pull_request::get_pull_requests_details(&github_client, pull_request_urls)
-            .await?;
+        functions::pull_request::get_pull_requests_details(&github_client, pr_urls).await?;
 
     // Output results
     match format {
