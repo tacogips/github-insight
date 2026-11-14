@@ -1,0 +1,11 @@
+pub mod get_issues_details;
+pub mod get_project_details;
+pub mod get_project_resources;
+pub mod get_pull_request_code_diff_stats;
+pub mod get_pull_request_details;
+pub mod get_pull_request_diff_contents;
+pub mod get_repository_details;
+pub mod list_project_urls_in_current_profile;
+pub mod list_repository_urls_in_current_profile;
+pub mod repository_branch_group;
+pub mod search_in_repositories;
